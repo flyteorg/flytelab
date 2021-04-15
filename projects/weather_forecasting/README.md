@@ -3,6 +3,11 @@
 The purpose of this project is to train a model to perform weather forecasting
 using [noaa.gov](https://www.ncei.noaa.gov/) data.
 
+**Note:** _For the best reading experience on github, we recommend installing the_
+_[markdown diagrams browser extension](https://github.com/marcozaccari/markdown-diagrams-browser-extension)_
+_to render all of the diagrams_ and _[mathjax (chrome)](https://github.com/orsharir/github-mathjax)_
+for math rendering.
+
 ## Prototype
 
 Since the term "weather forecasting" is quite expansive, we'll scope the protoype
@@ -124,6 +129,7 @@ $ make venv
 $ source ./.venv/weather-forecasting/bin/activate
 $ make deps
 $ make env.txt
+$ pip install -e .
 ```
 
 Replace `<API_KEY>` with an [official API key](https://www.ncdc.noaa.gov/cdo-web/token).
@@ -139,5 +145,5 @@ $ eval $(sed 's/^/export /g' env.txt)
 
 Get data
 ```
-python weather_forecasting/data_v1.py
+python -m flytelab.weather_forecasting.trainer
 ```

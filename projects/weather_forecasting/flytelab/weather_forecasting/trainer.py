@@ -46,7 +46,7 @@ Metrics = TypedDict(
     name=str,
     train=float,
     train_size=int,
-    validation=float,
+    validation=Optional[float],
     validation_size=int,
 )
 
@@ -244,8 +244,11 @@ def batch_to_norm_vectors(
     train_features = (train_features - mean) / std
 
     if validation_batch is not None:
-        validation_features, validation_target = batch_to_vectors(validation_batch)
-        validation_features = (validation_features - mean) / std
+        if len(validation_batch) == 0:
+            validation_features, validation_target = None, None
+        else:
+            validation_features, validation_target = batch_to_vectors(validation_batch)
+            validation_features = (validation_features - mean) / std
         return train_features, train_target, validation_features, validation_target
 
     return train_features, train_target
@@ -276,7 +279,10 @@ def evaluate_model(
                     name=scorer,
                     train=scoring_fn(model, train_features, train_target),
                     train_size=len(training_batch),
-                    validation=scoring_fn(model, validation_features, validation_target),
+                    validation=(
+                        scoring_fn(model, validation_features, validation_target)
+                        if validation_features and validation_target else None
+                    ),
                     validation_size=len(validation_batch),
                 )
             )
