@@ -23,6 +23,7 @@ else
 endif
 
 export FLYTE_HOST ?= demo.nuclyde.io
+export PREFIX ?= weather-forecasting
 
 # The Flyte project and domain that we want to register under
 export PROJECT ?= flytelab
