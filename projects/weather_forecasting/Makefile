@@ -8,9 +8,9 @@ ifeq ($(INSECURE), "true")
 endif
 
 ifeq ($(NOPUSH), "true")
-	NOPUSH=1
+	export NOPUSH=1
 else
-	NOPUSH=
+	export NOPUSH=
 endif
 
 # If the REGISTRY environment variable has been set, that means the image name will not just be tagged as
