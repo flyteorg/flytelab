@@ -58,7 +58,7 @@ serialize:
 	pyflyte -c flyte.config --pkgs app \
 		serialize \
 		--in-container-config-path /root/flyte.config \
-		--image ${FULL_IMAGE_NAME}:${VERSION} workflows -f _pb_output
+		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION} workflows -f _pb_output
 
 .PHONY: register
 register: docker-build serialize
