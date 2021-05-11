@@ -1,20 +1,18 @@
 import datetime
+import logging
 import os
 import pandas as pd
 import pandera as pa
-from collections import namedtuple
 from dataclasses import dataclass
 from functools import partial
 from io import StringIO
-from typing import List, NamedTuple, Optional, Union
+from typing import List, Optional, Union
 
 import geopy
 import requests
 import pytz
 from geopy.geocoders import Nominatim
-from geopy.timezone import Timezone
 from timezonefinder import TimezoneFinder
-
 
 
 USER_AGENT = "flyte-weather-forecasting"
@@ -23,8 +21,10 @@ DATASET_ENDPOINT = f"{API_BASE_URL}/datasets"
 DATA_ENDPOINT = f"{API_BASE_URL}/data"
 DATA_ACCESS_URL = "https://www.ncei.noaa.gov"
 DATASET_ID = "global-hourly"
+MISSING_DATA_INDICATOR = 9999
 
 
+logger = logging.getLogger(__file__)
 geolocator = Nominatim(user_agent=USER_AGENT)
 tf = TimezoneFinder()
 
@@ -45,11 +45,18 @@ class RawTrainingInstance:
     past_days_data: pd.DataFrame
     past_years_data: pd.DataFrame
 
+
 @dataclass
 class TrainingInstance:
     features: List[float]
     target: Optional[float]
+    target_is_complete: bool  # whether or not target is based on 24 hours worth of weather data
+    target_date: DateType
     id: Optional[str] = None
+
+    def __post_init__(self):
+        if isinstance(self.target_date, str):
+            self.target_date = datetime.datetime.strptime(self.target_date, "%Y-%m-%d")
 
 
 def _get_api_key():
@@ -63,7 +70,7 @@ def call_noaa_api(url, **params):
     params = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
     if params:
         url = f"{url}?{params}"
-    print(f"getting data for request {url}")
+    logger.debug(f"getting data for request {url}")
     r = requests.get(url, headers={"token": _get_api_key()})
     if r.status_code != 200:
         raise RuntimeError(f"call {url} failed with status code {r.status_code}")
@@ -77,7 +84,7 @@ def get_location(location_query: str) -> geopy.Location:
 def bounding_box(location: geopy.Location) -> List[str]:
     """
     Format bounding box
-    
+
     - from geocoder format: https://nominatim.org/release-docs/develop/api/Output/#boundingbox
     - to NOAA API format: https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation
     """
@@ -93,7 +100,7 @@ def date_n_years_ago(date: DateType, n: int):
     try:
         return date.replace(year=date.year - n)
     except ValueError:
-        assert date.month == 2 and from_date.day == 29 # handle leap year case for 2/29
+        assert date.month == 2 and date.day == 29  # handle leap year case for 2/29
         return date.replace(day=28, year=date.year - n)
 
 
@@ -104,7 +111,7 @@ def get_global_hourly_data(location_query: str, start_date: DateType, end_date: 
     if end_date is None:
         end_date = start_date + datetime.timedelta(days=1)
 
-    print(f"getting global hourly data for query: {location_query} between {start_date} and {end_date}")
+    logger.debug(f"getting global hourly data for query: {location_query} between {start_date} and {end_date}")
 
     def get_data(offset):
         return call_noaa_api(
@@ -126,15 +133,15 @@ def get_global_hourly_data(location_query: str, start_date: DateType, end_date: 
         results.extend(metadata["results"])
 
     data = []
-    print(f"found {len(results)} results")
+    logger.debug(f"found {len(results)} results")
     for result in results:
         for station in result["stations"]:
-            print(f"station: {station['name']}")
+            logger.debug(f"station: {station['name']}")
         response = requests.get(f"{DATA_ACCESS_URL}/{result['filePath']}")
         data.append(pd.read_csv(StringIO(response.text), low_memory=False))
 
     if len(data) == 0:
-        print(f"no data found between {start_date} and {end_date} for query: {location_query}")
+        logger.debug(f"no data found between {start_date} and {end_date} for query: {location_query}")
         return None
 
     data = GlobalHourlyData.validate(
@@ -143,9 +150,10 @@ def get_global_hourly_data(location_query: str, start_date: DateType, end_date: 
     return data[data.date.between(pd.Timestamp(start_date), pd.Timestamp(end_date))]
 
 
-def parse_global_hourly_data(df: pa.typing.DataFrame[GlobalHourlyData]):
+@pa.check_types
+def parse_global_hourly_data(df: Optional[pa.typing.DataFrame[GlobalHourlyData]]):
     """Process raw global hourly data.
-    
+
     For reference, see data document: https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
     """
     if df is None or df.empty:
@@ -154,16 +162,32 @@ def parse_global_hourly_data(df: pa.typing.DataFrame[GlobalHourlyData]):
         df.tmp.str.split(",", expand=True)
         .rename(columns=lambda x: ["air_temp", "air_temp_quality_code"][x])
         .astype(int)
-        .query("air_temp != 9999")  # missing data indicator
+        .query(f"air_temp != {MISSING_DATA_INDICATOR}")
         .join(df["date"])
         .assign(
             date=lambda _: _.date.dt.date,
-            # air temperature is in degress Celcius, with scaling factor of 10
+            # air temperature is in degress Celsius, with scaling factor of 10
             air_temp=lambda _: _.air_temp * 0.1,
         )
     )
 
-def process_raw_training_instance(raw_training_instance):
+
+def target_is_complete(target_data: pa.typing.DataFrame[GlobalHourlyData]) -> bool:
+    """Return True if the target data has a full days worth of data for all stations."""
+    return bool(
+        target_data
+        .groupby("station")["date"]
+        .agg(["min", "max"])
+        .pipe(lambda df: df["max"] - df["min"])
+        # there's some variation in how often data is collected depending on the station.
+        # The assumption is that if the data for the target date spans at least 23 hours
+        # then consider the sample as complete.
+        .pipe(lambda s: (s.dt.seconds / 60 / 60) >= 23)
+        .all()
+    )
+
+
+def process_raw_training_instance(raw_training_instance: RawTrainingInstance):
     return (
         pd.concat([
             parse_global_hourly_data(raw_training_instance.target_data),
@@ -183,7 +207,7 @@ def get_training_instance(
     instance_id: str = None,
 ) -> TrainingInstance:
     """Get a single training instance.
-    
+
     A single training instance for this model is defined as a `feature`, `target` pair:
     - `target`: the mean temperature on a particular target date `t`
     - `features`:
@@ -220,7 +244,13 @@ def get_training_instance(
     assert features.shape[0] == n_expected_features, \
         f"expected {n_expected_features} features, found {features.shape[0]}"
 
-    return TrainingInstance(features.tolist(), target, instance_id)
+    return TrainingInstance(
+        features.tolist(),
+        target,
+        target_is_complete=False if target_data is None else target_is_complete(target_data),
+        target_date=target_date,
+        id=instance_id,
+    )
 
 
 if __name__ == "__main__":

@@ -1,197 +1,19 @@
+import copy
 import datetime
 import json
-from functools import lru_cache, partial, wraps
-from hashlib import md5
-from pathlib import Path
-from typing import Any, Callable, List, Optional, TypedDict
+import itertools
+import logging
+from dataclasses import astuple
+from functools import partial
+from typing import List, Optional
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import SGDRegressor
 from sklearn.metrics import SCORERS
 
-from flytelab.weather_forecasting import data
-
-
-ModelConfig = TypedDict(
-    "ModelConfig",
-    genesis_date=datetime.date,
-    prior_days_window=int,
-    batch_size=int,
-    validation_size=int,
-)
-
-InstanceConfig = TypedDict(
-    "InstanceConfig",
-    lookback_window=int,
-    n_year_lookback=int,
-)
-
-MetricsConfig = TypedDict(
-    "MetricConfig",
-    scorers=List[str],
-)
-
-Config = TypedDict(
-    "Config",
-    model=ModelConfig,
-    instance=InstanceConfig,
-    metrics=MetricsConfig,
-)
-
-Metrics = TypedDict(
-    "Metrics",
-    name=str,
-    train=float,
-    train_size=int,
-    validation=Optional[float],
-    validation_size=int,
-)
-
-
-@lru_cache
-def create_hash_id(*data):
-    _hash = md5()
-    for d in data:
-        _hash.update(d)
-    return _hash.hexdigest()[:7]
-
-
-@lru_cache
-def create_id(target_date, *data):
-    return f"{target_date.strftime(r'%Y%m%d')}_{create_hash_id(*data)}"
-
-
-def cache_instance(get_instance_fn=None, *, cache_dir, **instance_config):
-    """Decorator to automatically cache training instances."""
-
-    if get_instance_fn is None:
-        return partial(cache_instance, cache_dir=cache_dir)
-
-    cache_data_id = create_hash_id(json.dumps(instance_config).encode())
-    cache_dir = Path(cache_dir) / cache_data_id
-
-    if not Path(cache_dir).exists():
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-    config_path = cache_dir / "config.json"
-    if not config_path.exists():
-        with config_path.open("w") as f:
-            json.dump(instance_config, f, indent=4, default=str)
-
-    @lru_cache
-    def get_instance(instance_id, target_date):
-        cache_path = cache_dir / f"{instance_id}.json"
-        if cache_path.exists():
-            with cache_path.open("r") as f:
-                print(f"getting training instance {instance_id} from cache dir {cache_dir}")
-                return data.TrainingInstance(**json.load(f))
-
-        instance = get_instance_fn(location_query, target_date, instance_id=instance_id, **instance_config)
-        with cache_path.open("w") as f:
-            json.dump({
-                "features": instance.features,
-                "target": instance.target,
-                "id": instance.id,
-            }, f)
-
-        return instance
-
-    @wraps(get_instance_fn)
-    def wrapped_instance_fn(
-        location_query: str,
-        target_date: data.DateType,
-    ):
-        return get_instance(
-            create_id(
-                target_date,
-                location_query.encode(),
-                target_date.isoformat().encode(),
-                json.dumps(instance_config).encode(),
-            ),
-            target_date,
-        )
-
-    return wrapped_instance_fn
-
-
-def cache_model(
-    update_model_fn: Callable[[BaseEstimator, List[data.TrainingInstance]], BaseEstimator] = None,
-    *,
-    eval_model_fn: Callable[
-        [BaseEstimator, List[data.TrainingInstance], List[data.TrainingInstance]],
-        List[Metrics],
-    ],
-    cache_dir,
-    **config,
-):
-    """Decorator to automatically cache model updates."""
-    if update_model_fn is None:
-        return partial(cache_model, cache_dir=cache_dir)
-    
-    # consists of "{genesis_date}_{hash_of_config}"
-    model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
-    model_dir_id = create_id(config["model"]["genesis_date"], *model_id_data)
-    cache_model_dir = Path(cache_dir) / model_dir_id
-
-    # path for root model (no training data)
-    root_model_id = f"00000000_{create_hash_id(*model_id_data)}"
-    root_model_dir = cache_model_dir / root_model_id
-    root_model_path = root_model_dir / "model.joblib"
-
-    for path in (cache_model_dir, root_model_dir):
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
-
-    config_path = cache_model_dir / "config.json"
-    if not config_path.exists():
-        with config_path.open("w") as f:
-            json.dump(config, f, indent=4, default=str)
-
-    @wraps(update_model_fn)
-    def wrapped_update_model_fn(
-        model: BaseEstimator,
-        training_batch: List[data.TrainingInstance],
-        validation_batch: List[data.TrainingInstance],
-        target_date: datetime.date,
-    ):
-        if not root_model_path.exists():
-            print(f"writing root model to {root_model_path}")
-            joblib.dump(model, root_model_path, compress=True)
-
-        model_update_id = create_id(
-            target_date, joblib.hash(model).encode(), *[instance.id.encode() for instance in training_batch]
-        )
-        model_update_dir = cache_model_dir / model_update_id
-        if not model_update_dir.exists():
-            model_update_dir.mkdir(parents=True)
-
-        model_update_path = model_update_dir / "model.joblib"
-        model_metrics_path = model_update_dir / "metrics.json"
-
-        if all(p.exists() for p in (model_update_path, model_metrics_path)):
-            print(f"reading model from cache {model_update_path}")
-            with model_metrics_path.open() as f:
-                metrics = json.load(f)
-            for metric in metrics:
-                print(f"[metric] {metric}")
-            model = joblib.load(model_update_path)
-            return model
-
-        print(f"updating model and writing to {model_update_path}")
-        updated_model = update_model_fn(model, training_batch)
-        joblib.dump(updated_model, model_update_path, compress=True)
-
-        metrics = eval_model_fn(updated_model, training_batch, validation_batch)
-        with model_metrics_path.open("w") as f:
-            for metric in metrics:
-                print(f"[metric] {metric}")
-            json.dump(metrics, f, indent=4, default=str)
-        return updated_model
-
-    return wrapped_update_model_fn
+from flytelab.weather_forecasting import data, cache, types
 
 
 def load_data(get_training_instance, location_query, target_date, config):
@@ -273,60 +95,112 @@ def evaluate_model(
     metrics = []
     for scorer in scorers:
         scoring_fn = SCORERS[scorer]
-        try:
-            metrics.append(
-                Metrics(
-                    name=scorer,
-                    train=scoring_fn(model, train_features, train_target),
-                    train_size=len(training_batch),
-                    validation=(
-                        scoring_fn(model, validation_features, validation_target)
-                        if validation_features and validation_target else None
-                    ),
-                    validation_size=len(validation_batch),
-                )
+        metrics.append(
+            types.Metrics(
+                name=scorer,
+                train=scoring_fn(model, train_features, train_target),
+                train_size=len(training_batch),
+                validation=(
+                    scoring_fn(model, validation_features, validation_target)
+                    if validation_features is not None and validation_target is not None
+                    else None
+                ),
+                validation_size=len(validation_batch),
             )
-        except:
-            import ipdb; ipdb.set_trace()
+        )
     return metrics
+
+
+def prepare_forecast_batch(
+    training_batch: List[data.TrainingInstance], predictions: List[float]
+) -> List[data.TrainingInstance]:
+    """Replaces the null value future placeholders with the forecasts so far."""
+    if not predictions:
+        return training_batch
+
+    instance = training_batch[0]
+
+    forecast_batch = []
+
+    def _fill_nans(instance, predictions):
+        features = copy.copy(instance.features)
+        if len(predictions) <= len(features):
+            for i, f in enumerate(predictions):
+                features[i] = f
+        else:
+            features = predictions[:len(features)]
+        return features
+
+    for i, instance in enumerate(training_batch):
+        forecast_batch.append(
+            data.TrainingInstance(_fill_nans(instance, predictions[i:]), *astuple(instance)[1:])
+        )
+
+    return forecast_batch
+
+
+def forecast_today(model: BaseEstimator, training_batch: List[data.TrainingInstance]):
+    features, _ = batch_to_norm_vectors(training_batch)
+    prediction = model.predict(features[:1, :]).item()  # just predict target_date
+    return prediction
 
 
 if __name__ == "__main__":
 
-    config = Config(
-        model=ModelConfig(
-            genesis_date=(datetime.datetime.now() - datetime.timedelta(days=3)).date(),
+    from pathlib import Path
+
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
+    logger = logging.getLogger(__file__)
+
+    config = types.Config(
+        model=types.ModelConfig(
+            genesis_date=datetime.date(2021, 4, 20),
             # lookback window for pre-training the model n number of days before the genesis date.
-            prior_days_window=3,
+            prior_days_window=7,
             batch_size=16,
-            validation_size=4,
+            validation_size=1,
         ),
-        instance=InstanceConfig(
-            lookback_window=30,
+        instance=types.InstanceConfig(
+            lookback_window=5,
             n_year_lookback=1,
         ),
-        metrics=MetricsConfig(
+        metrics=types.MetricsConfig(
             scorers=["neg_mean_absolute_error", "neg_mean_squared_error"],
+        ),
+        forecast=types.ForecastConfig(
+            n_days=4,
         )
     )
     location_query = "Atlanta, GA US"
 
-    print(f"training model with config:\n{json.dumps(config, indent=4, default=str)}")
+    logger.info(f"training model with config:\n{json.dumps(config, indent=4, default=str)}")
 
-    get_training_instance = cache_instance(
+    get_training_instance = cache.cache_instance(
         data.get_training_instance, cache_dir="./.cache/training_data", **config["instance"]
     )
-    update_model_fn = cache_model(
+    update_model_fn = cache.cache_model(
         update_model,
         eval_model_fn=partial(evaluate_model, config["metrics"]["scorers"]),
         cache_dir="./.cache/models",
         **config
     )
-    
+
     model = None
+    model_id = None
 
     # train model with specified amount of prior days knowledge
-    for i, n_prior_window in enumerate(reversed(range(config["model"]["prior_days_window"] + 1)), 1):
+    date_now = datetime.datetime.now().date()
+    genesis_to_now = (date_now - config["model"]["genesis_date"]).days + 1
+    prev_forecast = None
+
+    for i, n_days in enumerate(
+        itertools.chain(
+            # prior days knowledge lookback from the genesis date
+            (-x for x in reversed(range(config["model"]["prior_days_window"] + 1))),
+            # update model from genesis date to current date
+            range(1, genesis_to_now),
+        )
+    ):
         if model is None:
             model = SGDRegressor(
                 penalty="l1",
@@ -335,11 +209,34 @@ if __name__ == "__main__":
                 warm_start=True,
                 early_stopping=False,
             )
-        target_date = config["model"]["genesis_date"] - datetime.timedelta(days=n_prior_window)
-        print(f"[batch {i}] getting training/validation batches for target date {target_date}")
+        target_date = config["model"]["genesis_date"] + datetime.timedelta(days=n_days)
+        logger.info(f"[batch {i}] getting training/validation batches for target date {target_date}")
         training_batch, validation_batch = load_data(get_training_instance, location_query, target_date, config)
         if stop_training(training_batch):
-            print(f"[stop training] target is None for target_date: {target_date}")
             break
-        model = update_model_fn(model, training_batch, validation_batch, target_date)
-        print("=" * 50)
+        model, model_id = update_model_fn(model, training_batch, validation_batch, target_date)
+
+    # produce an n-day forecast
+    predictions, forecast_dates = [], []
+    for i, n_days in enumerate(range(config["forecast"]["n_days"] + 1)):
+        forecast_date = date_now + datetime.timedelta(days=n_days)
+        training_batch, _ = load_data(get_training_instance, location_query, forecast_date, config)
+        pred = forecast_today(model, prepare_forecast_batch(training_batch, predictions))
+        logger.info(f"[forecasting {i}] for target_date: {forecast_date}, prediction: {pred}")
+        # most recent forecasts first
+        predictions.insert(0, pred)
+        forecast_dates.insert(0, forecast_date)
+        logger.info("=" * 50)
+
+    assert model is not None, f"model {model} cannot be None"
+    assert model_id is not None, f"model_id {model_id} cannot be None"
+
+    forecast = types.Forecast(
+        created_at=date_now,
+        model_id=model_id,
+        predictions=[types.Prediction(value=p, date=d) for p, d in zip(predictions, forecast_dates)]
+    )
+    forecast_dir = Path(".cache") / "forecasts" / date_now.strftime("%Y%m%d") / model_id
+    forecast_dir.mkdir(exist_ok=True, parents=True)
+    with (forecast_dir / "forecasts.json").open("w") as f:
+        json.dump(forecast, f, default=str, indent=4)

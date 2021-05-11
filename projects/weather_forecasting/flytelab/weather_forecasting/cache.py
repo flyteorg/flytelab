@@ -1,14 +1,20 @@
 import datetime
+import logging
 import joblib
 import json
+from dataclasses import asdict
 from hashlib import md5
 from functools import lru_cache, partial, wraps
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
+import pandas as pd
 from sklearn.base import BaseEstimator
 
-from flytelab.weather_forecasting import data
+from flytelab.weather_forecasting import data, types
+
+
+logger = logging.getLogger(__file__)
 
 
 @lru_cache
@@ -24,7 +30,7 @@ def create_id(target_date, *data):
     return f"{target_date.strftime(r'%Y%m%d')}_{create_hash_id(*data)}"
 
 
-def cache_instance(get_instance_fn=None, *, cache_dir, **instance_config):
+def cache_instance(get_instance_fn: Callable[..., data.TrainingInstance] = None, *, cache_dir, **instance_config):
     """Decorator to automatically cache training instances."""
 
     if get_instance_fn is None:
@@ -42,20 +48,17 @@ def cache_instance(get_instance_fn=None, *, cache_dir, **instance_config):
             json.dump(instance_config, f, indent=4, default=str)
 
     @lru_cache
-    def get_instance(instance_id, target_date):
+    def get_instance(instance_id, location_query, target_date):
         cache_path = cache_dir / f"{instance_id}.json"
         if cache_path.exists():
             with cache_path.open("r") as f:
-                print(f"getting training instance {instance_id} from cache dir {cache_dir}")
+                logger.info(f"getting training instance {instance_id} from cache dir {cache_dir}")
                 return data.TrainingInstance(**json.load(f))
 
         instance = get_instance_fn(location_query, target_date, instance_id=instance_id, **instance_config)
-        with cache_path.open("w") as f:
-            json.dump({
-                "features": instance.features,
-                "target": instance.target,
-                "id": instance.id,
-            }, f)
+        if not pd.isna(instance.target) and instance.target_is_complete:
+            with cache_path.open("w") as f:
+                json.dump(asdict(instance), f, default=str)
 
         return instance
 
@@ -71,6 +74,7 @@ def cache_instance(get_instance_fn=None, *, cache_dir, **instance_config):
                 target_date.isoformat().encode(),
                 json.dumps(instance_config).encode(),
             ),
+            location_query,
             target_date,
         )
 
@@ -82,7 +86,7 @@ def cache_model(
     *,
     eval_model_fn: Callable[
         [BaseEstimator, List[data.TrainingInstance], List[data.TrainingInstance]],
-        List[Metrics],
+        List[types.Metrics],
     ],
     cache_dir,
     **config,
@@ -90,7 +94,7 @@ def cache_model(
     """Decorator to automatically cache model updates."""
     if update_model_fn is None:
         return partial(cache_model, cache_dir=cache_dir)
-    
+
     # consists of "{genesis_date}_{hash_of_config}"
     model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
     model_dir_id = create_id(config["model"]["genesis_date"], *model_id_data)
@@ -118,12 +122,13 @@ def cache_model(
         target_date: datetime.date,
     ):
         if not root_model_path.exists():
-            print(f"writing root model to {root_model_path}")
+            logger.info(f"writing root model to {root_model_path}")
             joblib.dump(model, root_model_path, compress=True)
 
         model_update_id = create_id(
             target_date, joblib.hash(model).encode(), *[instance.id.encode() for instance in training_batch]
         )
+        model_id = f"{model_dir_id}/{model_update_id}"
         model_update_dir = cache_model_dir / model_update_id
         if not model_update_dir.exists():
             model_update_dir.mkdir(parents=True)
@@ -132,23 +137,28 @@ def cache_model(
         model_metrics_path = model_update_dir / "metrics.json"
 
         if all(p.exists() for p in (model_update_path, model_metrics_path)):
-            print(f"reading model from cache {model_update_path}")
+            logger.info(f"reading model from cache {model_update_path}")
             with model_metrics_path.open() as f:
                 metrics = json.load(f)
             for metric in metrics:
-                print(f"[metric] {metric}")
+                log_metrics = {k: f"{v:0.04f}" if isinstance(v, float) else v for k, v in metric.items()}
+                logger.info(f"[metric] {log_metrics}")
             model = joblib.load(model_update_path)
-            return model
+            return model, model_id
 
-        print(f"updating model and writing to {model_update_path}")
+        logger.info(f"updating model and writing to {model_update_path}")
         updated_model = update_model_fn(model, training_batch)
         joblib.dump(updated_model, model_update_path, compress=True)
 
         metrics = eval_model_fn(updated_model, training_batch, validation_batch)
-        with model_metrics_path.open("w") as f:
-            for metric in metrics:
-                print(f"[metric] {metric}")
-            json.dump(metrics, f, indent=4, default=str)
-        return updated_model
+        for metric in metrics:
+            log_metrics = {k: f"{v:0.04f}" if isinstance(v, float) else v for k, v in metric.items()}
+            logger.info(f"[metric] {log_metrics}")
+        # only cache metrics if number of instances in validation batch matches validation size
+        if config["model"]["validation_size"] == len(validation_batch):
+            with model_metrics_path.open("w") as f:
+                json.dump(metrics, f, indent=4, default=str)
+
+        return updated_model, model_id
 
     return wrapped_update_model_fn
