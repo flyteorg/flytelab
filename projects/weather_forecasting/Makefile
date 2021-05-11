@@ -3,7 +3,7 @@ export REPOSITORY=flytelab
 VERSION=$(shell git rev-parse HEAD)
 IMAGE_NAME=flytelab
 
-ifeq ($(INSECURE), "true")
+ifeq ($(INSECURE), true)
 	INSECURE=-i
 endif
 
@@ -43,7 +43,7 @@ env-export:
 # flyte-related targets
 .PHONY: create-project
 create-project:
-	flyte-cli register-project -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
+	flyte-cli register-project -h ${HOST} ${INSECURE} -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
 
 .PHONY: docker-build
 docker-build:
