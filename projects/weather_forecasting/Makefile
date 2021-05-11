@@ -7,11 +7,7 @@ ifeq ($(INSECURE), "true")
 	INSECURE=-i
 endif
 
-ifeq ($(NOPUSH), "true")
-	export NOPUSH=1
-else
-	export NOPUSH=
-endif
+NOPUSH ?= 
 
 # If the REGISTRY environment variable has been set, that means the image name will not just be tagged as
 #   flytecookbook:<sha> but rather,
@@ -52,7 +48,7 @@ create-project:
 .PHONY: docker-build
 docker-build:
 	echo ${NOPUSH}
-	REGISTRY=${REGISTRY} NOPUSH=${NOPUSH} IMAGE_NAME=${IMAGE_NAME} flytekit_build_image.sh ./Dockerfile ${PREFIX}
+	# REGISTRY=${REGISTRY} NOPUSH=${NOPUSH} IMAGE_NAME=${IMAGE_NAME} flytekit_build_image.sh ./Dockerfile ${PREFIX}
 
 .PHONY: serialize
 serialize:
