@@ -27,7 +27,7 @@ jobs:
           username: "${{ secrets.FLYTE_BOT_USERNAME }}"
           password: "${{ secrets.FLYTE_BOT_PAT }}"
           image_name: ${{ github.repository_owner }}/flytelab
-          image_tag: weather-forecasting-latest,weather-forecasting-${{ github.sha }},weather-forecasting-${{ github.event.ref }}
+          image_tag: weather-forecasting-latest,weather-forecasting-${{ github.sha }}
           push_git_tag: ${{ github.event_name != 'pull_request' }}
           push_image_and_stages: ${{ github.event_name != 'pull_request' }}
           registry: ghcr.io
