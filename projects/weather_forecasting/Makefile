@@ -59,5 +59,5 @@ serialize:
 		--image ${FULL_IMAGE_NAME}:${VERSION} workflows -f _pb_output
 
 .PHONY: register
-register: docker_build serialize
+register: docker-build serialize
 	flyte-cli register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} -v ${VERSION} ${CURDIR}/_pb_output/*
