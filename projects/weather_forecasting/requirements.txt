@@ -1,3 +1,4 @@
+-e .
 flytekit
 geopy
 joblib

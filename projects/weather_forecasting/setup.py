@@ -7,5 +7,5 @@ setup(
     author="flyteorg",
     author_email="admin@flyte.org",
     namespace_packages=["flytelab"],
-    packages=[f"flytelab.weather_forecasting"],
+    packages=["flytelab.weather_forecasting"],
 )
