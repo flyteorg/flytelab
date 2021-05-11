@@ -48,7 +48,7 @@ create-project:
 .PHONY: docker-build
 docker-build:
 	echo ${NOPUSH}
-	# REGISTRY=${REGISTRY} NOPUSH=${NOPUSH} IMAGE_NAME=${IMAGE_NAME} flytekit_build_image.sh ./Dockerfile ${PREFIX}
+	REGISTRY=${REGISTRY} NOPUSH=${NOPUSH} IMAGE_NAME=${IMAGE_NAME} flytekit_build_image.sh ./Dockerfile ${PREFIX}
 
 .PHONY: serialize
 serialize:
