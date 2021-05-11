@@ -1,7 +1,7 @@
-export REPOSITORY=flytelab-weather-forecasting
+export REPOSITORY=flytelab
 
 VERSION=$(shell git rev-parse HEAD)
-IMAGE_NAME=flytelab-weather-forecasting
+IMAGE_NAME=flytelab
 
 ifeq ($(INSECURE), "true")
 	INSECURE=-i
@@ -27,8 +27,9 @@ export FLYTE_HOST ?= demo.nuclyde.io
 # The Flyte project and domain that we want to register under
 export PROJECT ?= flytelab
 export DOMAIN ?= development
+export DESCRIPTION ?= 'ML projects using Flyte'
 
-
+# targets for local development
 venv:
 	@virtualenv ./.venv/weather-forecasting
 
@@ -42,9 +43,10 @@ env.txt:
 env-export:
 	@eval $(sed 's/^/export /g' env.txt)
 
+# flyte-related targets
 .PHONY: create-project
 create-project:
-	flyte-cli register-project -p flytelab -n flytelab -d 'ML projects using Flyte'
+	flyte-cli register-project -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
 
 .PHONY: docker-build
 docker-build:

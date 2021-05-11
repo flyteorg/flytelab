@@ -1,0 +1,36 @@
+name: Build & Push Flytelab Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  create:
+    tags:
+      - v*
+
+jobs:
+  push-github:
+    name: Push to GHCR
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/weather_forecasting
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: "0"
+      - name: Push Flytelab Weather Forecasting Docker Image to Github Registry
+        uses: whoan/docker-build-with-cache-action@v5
+        with:
+          # https://docs.github.com/en/packages/learn-github-packages/publishing-a-package
+          username: "${{ secrets.FLYTE_BOT_USERNAME }}"
+          password: "${{ secrets.FLYTE_BOT_PAT }}"
+          image_name: ${{ github.repository_owner }}/flytelab
+          image_tag: weather-forecasting-latest,weather-forecasting-${{ github.sha }},weather-forecasting-${{ github.event.ref }}
+          push_git_tag: ${{ github.event_name != 'pull_request' }}
+          push_image_and_stages: ${{ github.event_name != 'pull_request' }}
+          registry: ghcr.io
+          build_extra_args: "--compress=true --build-arg=tag=ghcr.io/${{ github.repository_owner }}/flytelab:weather-forecasting-${{ github.sha }}"
+          context: ./projects/weather_forecasting
+          dockerfile: Dockerfile
