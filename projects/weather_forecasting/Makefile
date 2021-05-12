@@ -38,6 +38,8 @@ export DESCRIPTION ?= 'ML projects using Flyte'
 #   - flytepropeller can read (depending on the role it uses)
 export ADDL_DISTRIBUTION_DIR ?= s3://my-s3-bucket/flyte-fast-distributions
 
+FLYTE_INTERNAL_IMAGE=${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
+
 # targets for local development
 venv:
 	@virtualenv ./.venv/weather-forecasting
@@ -57,10 +59,26 @@ env-export:
 create-project:
 	flyte-cli register-project -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
 
+.PHONY: _requires-commit
+_requires-commit:
+	@if [ -n "$(shell git status --porcelain)" ]; then \
+		echo "Please commit git changes before building"; \
+		exit 1; \
+	fi;
+
 .PHONY: docker-build
-docker-build:
-	echo ${NOPUSH}
-	NOAA_API_KEY=${NOAA_API_KEY} REGISTRY=${REGISTRY} NOPUSH=${NOPUSH} IMAGE_NAME=${IMAGE_NAME} flytekit_build_image.sh ./Dockerfile ${PREFIX}
+docker-build: _requires-commit
+	@echo "Building: ${FLYTE_INTERNAL_IMAGE}"
+	docker build . \
+		--build-arg tag="${FLYTE_INTERNAL_IMAGE}" \
+		--build-arg noaa_api_key="${NOAA_API_KEY}" \
+		-t "${FLYTE_INTERNAL_IMAGE}" \
+		-f ./Dockerfile
+
+.PHONY: docker-push
+docker-push:
+	@echo "Pushing: ${FLYTE_INTERNAL_IMAGE}"
+	docker push "${FLYTE_INTERNAL_IMAGE}"
 
 .PHONY: serialize
 serialize:
@@ -72,7 +90,7 @@ serialize:
 		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION} workflows -f _pb_output
 
 .PHONY: register
-register: docker-build serialize
+register: docker-build docker-push serialize
 	flyte-cli register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} -v ${VERSION} ${CURDIR}/_pb_output/*
 
 .PHONY: fast_serialize

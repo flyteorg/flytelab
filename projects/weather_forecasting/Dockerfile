@@ -6,7 +6,6 @@ ENV VENV /opt/venv
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 ENV PYTHONPATH /root
-ENV NOAA_API_KEY default
 
 # This is necessary for opencv to work
 RUN apt-get update && apt-get install -y libsm6 libxext6 libxrender-dev ffmpeg build-essential
@@ -34,3 +33,5 @@ COPY flyte.config /root
 # when registering tasks, workflows, and launch plans
 ARG tag
 ENV FLYTE_INTERNAL_IMAGE $tag
+ARG noaa_api_key
+ENV NOAA_API_KEY $noaa_api_key
