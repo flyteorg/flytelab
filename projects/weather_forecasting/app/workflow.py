@@ -14,7 +14,11 @@ def hello_world(name: str = "world") -> str:
     return greeting
 
 
+@task
+def fetch_key(key: str) -> str:
+    return os.getenv(key)
+
+
 @workflow
-def get_api_key() -> str:
-    api_key = os.getenv("NOAA_API_KEY")
-    return api_key
+def get_api_key(key: str) -> str:
+    return fetch_key(key=key)
