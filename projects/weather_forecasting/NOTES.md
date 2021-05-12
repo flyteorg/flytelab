@@ -8,7 +8,11 @@ system.
 ### Register Workflows
 
 ```
-INSECURE=true FLYTE_HOST=localhost:30081 OUTPUT_DATA_PREFIX=s3://my-s3-bucket ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/flyte-fast-distributions REGISTRY=public.ecr.aws/nuclyde make register
+INSECURE=true \
+FLYTE_HOST=localhost:30081 \
+OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
+ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/flyte-fast-distributions \
+REGISTRY=public.ecr.aws/nuclyde make register
 ```
 
 ### Fast Registering New Code
