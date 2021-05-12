@@ -7,7 +7,13 @@ ifeq ($(INSECURE), true)
 	INSECURE=-i
 endif
 
-NOPUSH ?= 
+ifeq ($(NOPUSH), true)
+	NOPUSH=1
+endif
+
+ifndef SERVICE_ACCOUNT
+	SERVICE_ACCOUNT=default
+endif
 
 # If the REGISTRY environment variable has been set, that means the image name will not just be tagged as
 #   flytecookbook:<sha> but rather,
@@ -18,13 +24,19 @@ else
 	FULL_IMAGE_NAME = ${IMAGE_NAME}
 endif
 
-export FLYTE_HOST ?= demo.nuclyde.io
+export FLYTE_HOST ?= localhost:30081
 export PREFIX ?= weather-forecasting
 
 # The Flyte project and domain that we want to register under
 export PROJECT ?= flytelab
 export DOMAIN ?= development
 export DESCRIPTION ?= 'ML projects using Flyte'
+
+# This specifies where fast-registered code is uploaded to during registration.
+# If you're not using the standard minio deployment on flyte sandbox: update this path to something that
+#   - you have write access to
+#   - flytepropeller can read (depending on the role it uses)
+export ADDL_DISTRIBUTION_DIR ?= s3://my-s3-bucket/flyte-fast-distributions
 
 # targets for local development
 venv:
@@ -43,7 +55,7 @@ env-export:
 # flyte-related targets
 .PHONY: create-project
 create-project:
-	flyte-cli register-project -h ${HOST} ${INSECURE} -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
+	flyte-cli register-project -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -n ${PROJECT} -d ${DESCRIPTION}
 
 .PHONY: docker-build
 docker-build:
@@ -55,11 +67,24 @@ serialize:
 	echo ${CURDIR}
 	rm -rf ${CURDIR}/_pb_output || true
 	mkdir ${CURDIR}/_pb_output || true
-	pyflyte -c flyte.config --pkgs app \
-		serialize \
+	pyflyte -c flyte.config --pkgs app serialize \
 		--in-container-config-path /root/flyte.config \
 		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION} workflows -f _pb_output
 
 .PHONY: register
 register: docker-build serialize
 	flyte-cli register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} -v ${VERSION} ${CURDIR}/_pb_output/*
+
+.PHONY: fast_serialize
+fast_serialize:
+	echo ${CURDIR}
+	mkdir ${CURDIR}/_pb_output || true
+	rm ${CURDIR}/_pb_output/* || true
+	pyflyte -c flyte.config --pkgs app serialize \
+		--in-container-config-path /root/flyte.config \
+		--image ghcr.io/flyteorg/${PROJECT}:${PREFIX}-latest fast workflows -f _pb_output/
+
+.PHONY: fast_register
+fast_register: fast_serialize
+	flyte-cli fast-register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} \
+		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} _pb_output/*
