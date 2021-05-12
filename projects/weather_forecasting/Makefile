@@ -39,6 +39,7 @@ export DESCRIPTION ?= 'ML projects using Flyte'
 export ADDL_DISTRIBUTION_DIR ?= s3://my-s3-bucket/flyte-fast-distributions
 
 FLYTE_INTERNAL_IMAGE=${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
+FLYTE_INTERNAL_LATEST=${FULL_IMAGE_NAME}:${PREFIX}-latest
 
 # targets for local development
 venv:
@@ -73,6 +74,7 @@ docker-build: _requires-commit
 		--build-arg tag="${FLYTE_INTERNAL_IMAGE}" \
 		--build-arg noaa_api_key="${NOAA_API_KEY}" \
 		-t "${FLYTE_INTERNAL_IMAGE}" \
+		-t "${FLYTE_INTERNAL_LATEST}" \
 		-f ./Dockerfile
 
 .PHONY: docker-push
