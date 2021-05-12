@@ -16,6 +16,7 @@ def hello_world(name: str = "world") -> str:
 
 @task
 def fetch_key(key: str) -> str:
+    print("fetching API key")
     return os.getenv(key)
 
 
