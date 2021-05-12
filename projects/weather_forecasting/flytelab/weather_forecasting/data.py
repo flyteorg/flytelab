@@ -3,7 +3,9 @@ import logging
 import os
 import pandas as pd
 import pandera as pa
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from dataclasses_json import dataclass_json, config
+
 from functools import partial
 from io import StringIO
 from typing import List, Optional, Union
@@ -39,6 +41,7 @@ class GlobalHourlyData(pa.SchemaModel):
         coerce = True
 
 
+@dataclass_json
 @dataclass
 class RawTrainingInstance:
     target_data: pd.DataFrame
@@ -46,12 +49,28 @@ class RawTrainingInstance:
     past_years_data: pd.DataFrame
 
 
+def date_field_config():
+    return config(
+        encoder=lambda x: (
+            datetime.date.isoformat(x)
+            if isinstance(x, datetime.date)
+            else datetime.datetime.isoformat(x)
+        ),
+        decoder=lambda x: (
+            datetime.date.fromisoformat(x)
+            if isinstance(x, datetime.date)
+            else datetime.datetime.fromisoformat(x)
+        ),
+    )
+
+
+@dataclass_json
 @dataclass
 class TrainingInstance:
     features: List[float]
     target: Optional[float]
     target_is_complete: bool  # whether or not target is based on 24 hours worth of weather data
-    target_date: DateType
+    target_date: DateType = field(metadata=date_field_config())
     id: Optional[str] = None
 
     def __post_init__(self):
