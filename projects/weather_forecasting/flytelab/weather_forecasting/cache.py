@@ -30,6 +30,12 @@ def create_id(target_date, *data):
     return f"{target_date.strftime(r'%Y%m%d')}_{create_hash_id(*data)}"
 
 
+@lru_cache
+def create_model_id(config):
+    model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
+    return create_id(config["model"]["genesis_date"], *model_id_data)
+
+
 def cache_instance(get_instance_fn: Callable[..., data.TrainingInstance] = None, *, cache_dir, **instance_config):
     """Decorator to automatically cache training instances."""
 

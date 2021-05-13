@@ -19,12 +19,12 @@ from flytelab.weather_forecasting import data, cache, types
 def load_data(get_training_instance, location_query, target_date, config):
     training_batch = [
         get_training_instance(location_query, target_date - datetime.timedelta(days=i))
-        for i in range(config["model"]["batch_size"])
+        for i in range(config.model.batch_size)
     ]
     validation_batch = [
         instance for instance in (
             get_training_instance(location_query, target_date + datetime.timedelta(days=i + 1))
-            for i in range(config["model"]["validation_size"])
+            for i in range(config.model.validation_size)
         )
         if not pd.isna(instance.target)
     ]
@@ -118,10 +118,6 @@ def prepare_forecast_batch(
     if not predictions:
         return training_batch
 
-    instance = training_batch[0]
-
-    forecast_batch = []
-
     def _fill_nans(instance, predictions):
         features = copy.copy(instance.features)
         if len(predictions) <= len(features):
@@ -131,6 +127,7 @@ def prepare_forecast_batch(
             features = predictions[:len(features)]
         return features
 
+    forecast_batch = []
     for i, instance in enumerate(training_batch):
         forecast_batch.append(
             data.TrainingInstance(_fill_nans(instance, predictions[i:]), *astuple(instance)[1:])
@@ -176,11 +173,11 @@ if __name__ == "__main__":
     logger.info(f"training model with config:\n{json.dumps(config, indent=4, default=str)}")
 
     get_training_instance = cache.cache_instance(
-        data.get_training_instance, cache_dir="./.cache/training_data", **config["instance"]
+        data.get_training_instance, cache_dir="./.cache/training_data", **config.instance
     )
     update_model_fn = cache.cache_model(
         update_model,
-        eval_model_fn=partial(evaluate_model, config["metrics"]["scorers"]),
+        eval_model_fn=partial(evaluate_model, config.metrics.scorers),
         cache_dir="./.cache/models",
         **config
     )
@@ -190,13 +187,12 @@ if __name__ == "__main__":
 
     # train model with specified amount of prior days knowledge
     date_now = datetime.datetime.now().date()
-    genesis_to_now = (date_now - config["model"]["genesis_date"]).days + 1
-    prev_forecast = None
+    genesis_to_now = (date_now - config.model.genesis_date).days + 1
 
     for i, n_days in enumerate(
         itertools.chain(
             # prior days knowledge lookback from the genesis date
-            (-x for x in reversed(range(config["model"]["prior_days_window"] + 1))),
+            (-x for x in reversed(range(config.model.prior_days_window + 1))),
             # update model from genesis date to current date
             range(1, genesis_to_now),
         )
@@ -209,7 +205,7 @@ if __name__ == "__main__":
                 warm_start=True,
                 early_stopping=False,
             )
-        target_date = config["model"]["genesis_date"] + datetime.timedelta(days=n_days)
+        target_date = config.model.genesis_date + datetime.timedelta(days=n_days)
         logger.info(f"[batch {i}] getting training/validation batches for target date {target_date}")
         training_batch, validation_batch = load_data(get_training_instance, location_query, target_date, config)
         if stop_training(training_batch):
@@ -218,7 +214,7 @@ if __name__ == "__main__":
 
     # produce an n-day forecast
     predictions, forecast_dates = [], []
-    for i, n_days in enumerate(range(config["forecast"]["n_days"] + 1)):
+    for i, n_days in enumerate(range(config.forecast.n_days + 1)):
         forecast_date = date_now + datetime.timedelta(days=n_days)
         training_batch, _ = load_data(get_training_instance, location_query, forecast_date, config)
         pred = forecast_today(model, prepare_forecast_batch(training_batch, predictions))

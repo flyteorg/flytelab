@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import pandera as pa
 from dataclasses import dataclass, field
-from dataclasses_json import dataclass_json, config
+from dataclasses_json import dataclass_json
 
 from functools import partial
 from io import StringIO
@@ -15,6 +15,8 @@ import requests
 import pytz
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
+
+from flytelab.weather_forecasting import types
 
 
 USER_AGENT = "flyte-weather-forecasting"
@@ -29,9 +31,6 @@ MISSING_DATA_INDICATOR = 9999
 logger = logging.getLogger(__file__)
 geolocator = Nominatim(user_agent=USER_AGENT)
 tf = TimezoneFinder()
-
-
-DateType = Union[datetime.date, datetime.datetime]
 
 
 class GlobalHourlyData(pa.SchemaModel):
@@ -49,33 +48,25 @@ class RawTrainingInstance:
     past_years_data: pd.DataFrame
 
 
-def date_field_config():
-    return config(
-        encoder=lambda x: (
-            datetime.date.isoformat(x)
-            if isinstance(x, datetime.date)
-            else datetime.datetime.isoformat(x)
-        ),
-        decoder=lambda x: (
-            datetime.date.fromisoformat(x)
-            if isinstance(x, datetime.date)
-            else datetime.datetime.fromisoformat(x)
-        ),
-    )
-
-
 @dataclass_json
 @dataclass
 class TrainingInstance:
     features: List[float]
     target: Optional[float]
     target_is_complete: bool  # whether or not target is based on 24 hours worth of weather data
-    target_date: DateType = field(metadata=date_field_config())
+    target_date: types.DateType = field(metadata=types.date_field_config())
     id: Optional[str] = None
 
     def __post_init__(self):
-        if isinstance(self.target_date, str):
-            self.target_date = datetime.datetime.strptime(self.target_date, "%Y-%m-%d")
+        if pd.isna(self.target):
+            self.target = None
+
+
+@dataclass_json
+@dataclass
+class Batch:
+    training_data: List[TrainingInstance]
+    validation_data: List[TrainingInstance]
 
 
 def _get_api_key():
@@ -115,7 +106,7 @@ def get_timezone(location: geopy.Location):
     return pytz.timezone(tf.timezone_at(lng=location.longitude, lat=location.latitude))
 
 
-def date_n_years_ago(date: DateType, n: int):
+def date_n_years_ago(date: types.DateType, n: int):
     try:
         return date.replace(year=date.year - n)
     except ValueError:
@@ -123,7 +114,7 @@ def date_n_years_ago(date: DateType, n: int):
         return date.replace(day=28, year=date.year - n)
 
 
-def get_global_hourly_data(location_query: str, start_date: DateType, end_date: Optional[DateType] = None):
+def get_global_hourly_data(location_query: str, start_date: types.DateType, end_date: Optional[types.DateType] = None):
     """Get global hourly data at specified location between two dates."""
     location = get_location(location_query)
 
@@ -220,7 +211,7 @@ def process_raw_training_instance(raw_training_instance: RawTrainingInstance):
 
 def get_training_instance(
     location_query: str,
-    target_date: DateType,
+    target_date: types.DateType,
     lookback_window: int = 14,
     n_year_lookback: int = 1,
     instance_id: str = None,
