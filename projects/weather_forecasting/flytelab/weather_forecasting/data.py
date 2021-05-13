@@ -6,9 +6,9 @@ import pandera as pa
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 
-from functools import partial
+from functools import partial, lru_cache
 from io import StringIO
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import geopy
 import requests
@@ -87,6 +87,7 @@ def call_noaa_api(url, **params):
     return r.json()
 
 
+@lru_cache
 def get_location(location_query: str) -> geopy.Location:
     return geolocator.geocode(location_query)
 

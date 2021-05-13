@@ -1,7 +1,6 @@
 import copy
 import itertools
 import joblib
-import json
 import logging
 import os
 import time
@@ -9,7 +8,6 @@ from dataclasses import astuple
 from datetime import datetime, timedelta
 from typing import List
 
-import pandas as pd
 from sklearn.linear_model import SGDRegressor
 
 from flytekit import task, dynamic, workflow
@@ -19,6 +17,7 @@ from flytelab.weather_forecasting import data, trainer, types
 
 
 logger = logging.getLogger(__file__)
+
 
 MAX_RETRIES = 10
 
@@ -35,6 +34,38 @@ def get_api_key(key: str) -> str:
 
 
 @task(cache=True, cache_version="1")
+def get_config(
+    model_genesis_date: datetime,
+    model_prior_days_window: int,
+    model_batch_size: int,
+    model_validation_size: int,
+    instance_lookback_window: int,
+    instance_n_year_lookback: int,
+    metrics_scorers: List[str],
+    forecast_n_days: int,
+) -> types.Config:
+    return types.Config(
+        model=types.ModelConfig(
+            genesis_date=model_genesis_date,
+            # lookback window for pre-training the model n number of days before the genesis date.
+            prior_days_window=model_prior_days_window,
+            batch_size=model_batch_size,
+            validation_size=model_validation_size,
+        ),
+        instance=types.InstanceConfig(
+            lookback_window=instance_lookback_window,
+            n_year_lookback=instance_n_year_lookback,
+        ),
+        metrics=types.MetricsConfig(
+            scorers=metrics_scorers,
+        ),
+        forecast=types.ForecastConfig(
+            n_days=forecast_n_days,
+        )
+    )
+
+
+@task(cache=True, cache_version="1")
 def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
@@ -45,6 +76,19 @@ def get_training_instance(location: str, target_date: datetime) -> data.Training
             return instance
         except RuntimeError:
             time.sleep(1)
+
+
+@workflow
+def get_training_instance_wf(location: str, target_date: datetime) -> data.TrainingInstance:
+    return get_training_instance(location=location, target_date=target_date)
+
+
+@task(cache=True, cache_version="1")
+def create_batch(
+    training_data: List[data.TrainingInstance],
+    validation_data: List[data.TrainingInstance]
+) -> data.Batch:
+    return data.Batch(training_data=training_data, validation_data=validation_data)
 
 
 @dynamic(cache=True, cache_version="1")
@@ -61,18 +105,15 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
     ):
         target_date = config.model.genesis_date + timedelta(days=n_days)
         logger.info(f"[batch {i}] getting training/validation batches for target date {target_date}")
-        training_data = [
+        training_data: List[data.TrainingInstance] = [
             get_training_instance(location=location, target_date=target_date - timedelta(days=j))
             for j in range(int(config.model.batch_size))
         ]
-        validation_data = [
-            instance for instance in (
-                get_training_instance(location=location, target_date=target_date + timedelta(days=j + 1))
-                for j in range(int(config.model.validation_size))
-            )
-            if not pd.isna(instance.target)
+        validation_data: List[data.TrainingInstance] = [
+            get_training_instance(location=location, target_date=target_date + timedelta(days=j))
+            for j in range(int(config.model.validation_size))
         ]
-        batches.append(data.Batch(training_data=training_data, validation_data=validation_data))
+        batches.append(create_batch(training_data=training_data, validation_data=validation_data))
     return batches
 
 
@@ -119,7 +160,7 @@ def get_prediction(
     model_file: JoblibSerializedFile,
     forecast_batch: List[data.TrainingInstance],
     predictions: List[types.Prediction],
-) -> (float, str):  # type: ignore
+) -> types.Prediction:
     """Replaces the null value future placeholders with the forecasts so far."""
     with open(model_file, "rb") as f:
         model = joblib.load(f)
@@ -163,7 +204,7 @@ def get_forecast(
         forecast_date = target_date + timedelta(days=n_days)
         forecast_batch = [
             get_training_instance(location=location, target_date=forecast_date - timedelta(days=j))
-            for j in range(int(config.model.batch_size))
+            for j in range(1, int(config.model.batch_size) + 1)
         ]
         pred = get_prediction(model_file=model_file, forecast_batch=forecast_batch, predictions=predictions)
         logger.info(f"[forecasting {i}] {pred}")
@@ -173,8 +214,29 @@ def get_forecast(
 
 
 @workflow
-def run_pipeline(config: types.Config, location: str) -> types.Forecast:
-    logger.info(f"training model with config:\n{json.dumps(config, indent=4, default=str)}")
+def run_pipeline(
+    location: str,
+    model_genesis_date: datetime = datetime.now(),
+    model_prior_days_window: int = 3,
+    model_batch_size: int = 7,
+    model_validation_size: int = 1,
+    instance_lookback_window: int = 3,
+    instance_n_year_lookback: int = 1,
+    metrics_scorers: List[str] = ["neg_mean_absolute_error", "neg_mean_squared_error"],
+    forecast_n_days: int = 3,
+) -> types.Forecast:
+    config = get_config(
+        model_genesis_date=model_genesis_date,
+        model_prior_days_window=model_prior_days_window,
+        model_batch_size=model_batch_size,
+        model_validation_size=model_validation_size,
+        instance_lookback_window=instance_lookback_window,
+        instance_n_year_lookback=instance_n_year_lookback,
+        metrics_scorers=metrics_scorers,
+        forecast_n_days=forecast_n_days,
+    )
+    logger.info("training model with config:")
+    logger.info(config)
     now = datetime.now()
     batches = get_training_data(
         now=now,
@@ -192,27 +254,6 @@ def run_pipeline(config: types.Config, location: str) -> types.Forecast:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
-    from datetime import date
-
-    config = types.Config(
-        model=types.ModelConfig(
-            genesis_date=date(2021, 5, 12),
-            # lookback window for pre-training the model n number of days before the genesis date.
-            prior_days_window=8,
-            batch_size=8,
-            validation_size=1,
-        ),
-        instance=types.InstanceConfig(
-            lookback_window=8,
-            n_year_lookback=1,
-        ),
-        metrics=types.MetricsConfig(
-            scorers=["neg_mean_absolute_error", "neg_mean_squared_error"],
-        ),
-        forecast=types.ForecastConfig(
-            n_days=3,
-        )
-    )
-    forecast = run_pipeline(config=config, location="Atlanta, GA US")
+    forecast = run_pipeline(location="Atlanta, GA US")
     logger.info("forecast")
     logger.info(forecast)

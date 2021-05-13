@@ -25,7 +25,7 @@ def date_field_config():
 @dataclass_json
 @dataclass
 class ModelConfig:
-    genesis_date: datetime.date = field(metadata=date_field_config())
+    genesis_date: datetime.datetime = field(metadata=date_field_config())
     prior_days_window: int
     batch_size: int
     validation_size: int

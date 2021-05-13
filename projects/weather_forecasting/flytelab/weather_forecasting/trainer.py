@@ -66,6 +66,7 @@ def batch_to_norm_vectors(
     train_features = (train_features - mean) / std
 
     if validation_batch is not None:
+        validation_batch = [instance for instance in validation_batch if not pd.isna(instance.target)]
         if len(validation_batch) == 0:
             validation_features, validation_target = None, None
         else:

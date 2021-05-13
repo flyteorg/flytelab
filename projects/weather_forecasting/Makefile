@@ -15,6 +15,7 @@ ifndef SERVICE_ACCOUNT
 	SERVICE_ACCOUNT=default
 endif
 
+
 # If the REGISTRY environment variable has been set, that means the image name will not just be tagged as
 #   flytecookbook:<sha> but rather,
 #   docker.io/lyft/flytecookbook:<sha> or whatever your REGISTRY is.
@@ -27,7 +28,6 @@ endif
 export FLYTE_HOST ?= localhost:30081
 export PREFIX ?= weather-forecasting
 export FLYTE_CONFIG ?= .flyte/sandbox.config
-export SERVICE_ACCOUNT ?= default
 
 # The Flyte project and domain that we want to register under
 export PROJECT ?= flytelab
@@ -71,6 +71,9 @@ _requires-commit:
 
 .PHONY: docker-build
 docker-build: _requires-commit
+ifndef NOAA_API_KEY
+	$(error NOAA_API_KEY must be defined)
+endif
 	@echo "Building: ${FLYTE_INTERNAL_IMAGE}"
 	docker build . \
 		--build-arg tag="${FLYTE_INTERNAL_IMAGE}" \
@@ -84,6 +87,7 @@ docker-build: _requires-commit
 docker-push:
 	@echo "Pushing: ${FLYTE_INTERNAL_IMAGE}"
 	docker push "${FLYTE_INTERNAL_IMAGE}"
+	docker push "${FLYTE_INTERNAL_LATEST}"
 
 .PHONY: serialize
 serialize:
@@ -101,7 +105,6 @@ register: docker-build docker-push serialize
 		-p ${PROJECT} \
 		-d ${DOMAIN} \
 		-v ${VERSION} \
-		-s ${SERVICE_ACCOUNT} \
 		${CURDIR}/_pb_output/*
 
 .PHONY: fast_serialize
@@ -110,8 +113,8 @@ fast_serialize:
 	mkdir ${CURDIR}/_pb_output || true
 	rm ${CURDIR}/_pb_output/* || true
 	pyflyte -c flyte.config --pkgs app serialize \
-		--in-container-config-path /root/flyte.config \
-		--image ghcr.io/flyteorg/${PROJECT}:${PREFIX}-latest fast workflows -f _pb_output/
+		--in-container-config-path ${FLYTE_CONFIG} \
+		--image ${FLYTE_INTERNAL_LATEST} fast workflows -f _pb_output/
 
 .PHONY: fast_register
 fast_register: fast_serialize
@@ -119,6 +122,5 @@ fast_register: fast_serialize
 		-h ${FLYTE_HOST} \
 		-p ${PROJECT} \
 		-d ${DOMAIN} \
-		-s ${SERVICE_ACCOUNT} \
 		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} \
-		${CURDIR}/_pb_output/*
+		_pb_output/*
