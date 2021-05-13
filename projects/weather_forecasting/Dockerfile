@@ -7,6 +7,9 @@ ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 ENV PYTHONPATH /root
 
+# e.g. flyte.config or sandbox.config
+ARG config
+
 # This is necessary for opencv to work
 RUN apt-get update && apt-get install -y libsm6 libxext6 libxrender-dev ffmpeg build-essential
 
@@ -27,7 +30,7 @@ RUN pip install -r /root/requirements.txt
 
 # Copy the makefile targets to expose on the container. This makes it easier to register
 COPY in_container.mk /root/Makefile
-COPY flyte.config /root
+COPY $config /root/flyte.config
 
 # This tag is supplied by the build script and will be used to determine the version
 # when registering tasks, workflows, and launch plans

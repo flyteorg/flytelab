@@ -73,6 +73,7 @@ Metrics = TypedDict(
 @dataclass
 class Prediction:
     value: Optional[float]
+    error: Optional[str]
     date: datetime.datetime = field(metadata=date_field_config())
 
 

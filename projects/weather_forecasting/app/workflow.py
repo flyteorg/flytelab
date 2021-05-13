@@ -116,34 +116,36 @@ def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type
 
 @task(cache=True, cache_version="1")
 def get_prediction(
-    model_file: JoblibSerializedFile, forecast_batch: List[data.TrainingInstance], predictions: List[float]
-) -> float:
+    model_file: JoblibSerializedFile,
+    forecast_batch: List[data.TrainingInstance],
+    predictions: List[types.Prediction],
+) -> (float, str):  # type: ignore
     """Replaces the null value future placeholders with the forecasts so far."""
     with open(model_file, "rb") as f:
         model = joblib.load(f)
 
-    def _fill_nans(instance, predictions):
+    def new_instance(instance: data.TrainingInstance, predictions: List[types.Prediction]):
         features = copy.copy(instance.features)
         if len(predictions) <= len(features):
-            for i, f in enumerate(predictions):
-                features[i] = f
+            for i, pred in enumerate(predictions):
+                features[i] = pred.value
         else:
             features = predictions[:len(features)]
-        return features
+
+        return data.TrainingInstance(features, *astuple(instance)[1:])
 
     if predictions:
-        forecast_batch = [
-            data.TrainingInstance(_fill_nans(instance, predictions[i:]), *astuple(instance)[1:])
-            for i, instance in enumerate(forecast_batch)
-        ]
+        forecast_batch = [new_instance(instance, predictions[i:]) for i, instance in enumerate(forecast_batch)]
 
+    error = None
     try:
         features, _ = trainer.batch_to_norm_vectors(forecast_batch)
+        # only generate prediction for last item
         pred = model.predict(features[:1, :]).item()
-    except Exception:
-        import ipdb; ipdb.set_trace()
+    except Exception as exc:
         pred = None
-    return pred
+        error = str(exc)
+    return types.Prediction(value=pred, error=error, date=forecast_batch[0].target_date)
 
 
 @dynamic(cache=True, cache_version="1")
@@ -156,25 +158,18 @@ def get_forecast(
     with open(model_file, "rb") as f:
         model = joblib.load(f)
 
-    predictions, forecast_dates = [], []
+    predictions: List[types.Prediction] = []
     for i, n_days in enumerate(range(int(config.forecast.n_days) + 1)):
         forecast_date = target_date + timedelta(days=n_days)
         forecast_batch = [
             get_training_instance(location=location, target_date=forecast_date - timedelta(days=j))
-            for j in range(1, int(config.model.batch_size) + 1)
+            for j in range(int(config.model.batch_size))
         ]
         pred = get_prediction(model_file=model_file, forecast_batch=forecast_batch, predictions=predictions)
-        logger.info(f"[forecasting {i}] for target_date: {forecast_date}, prediction: {pred}")
-        # most recent forecasts first
-        predictions.insert(0, pred)
-        forecast_dates.insert(0, forecast_date)
-        logger.info("=" * 50)
+        logger.info(f"[forecasting {i}] {pred}")
+        predictions.insert(0, pred)  # most recent forecasts first
 
-    return types.Forecast(
-        created_at=target_date,
-        model_id=joblib.hash(model),
-        predictions=[types.Prediction(value=p, date=d) for p, d in zip(predictions, forecast_dates)]
-    )
+    return types.Forecast(created_at=target_date, model_id=joblib.hash(model), predictions=predictions)
 
 
 @workflow
@@ -201,14 +196,14 @@ if __name__ == "__main__":
 
     config = types.Config(
         model=types.ModelConfig(
-            genesis_date=date(2021, 5, 11),
+            genesis_date=date(2021, 5, 12),
             # lookback window for pre-training the model n number of days before the genesis date.
-            prior_days_window=1,
-            batch_size=3,
+            prior_days_window=8,
+            batch_size=8,
             validation_size=1,
         ),
         instance=types.InstanceConfig(
-            lookback_window=3,
+            lookback_window=8,
             n_year_lookback=1,
         ),
         metrics=types.MetricsConfig(

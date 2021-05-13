@@ -26,6 +26,8 @@ endif
 
 export FLYTE_HOST ?= localhost:30081
 export PREFIX ?= weather-forecasting
+export FLYTE_CONFIG ?= .flyte/sandbox.config
+export SERVICE_ACCOUNT ?= default
 
 # The Flyte project and domain that we want to register under
 export PROJECT ?= flytelab
@@ -72,6 +74,7 @@ docker-build: _requires-commit
 	@echo "Building: ${FLYTE_INTERNAL_IMAGE}"
 	docker build . \
 		--build-arg tag="${FLYTE_INTERNAL_IMAGE}" \
+		--build-arg config="${FLYTE_CONFIG}" \
 		--build-arg noaa_api_key="${NOAA_API_KEY}" \
 		-t "${FLYTE_INTERNAL_IMAGE}" \
 		-t "${FLYTE_INTERNAL_LATEST}" \
@@ -93,7 +96,13 @@ serialize:
 
 .PHONY: register
 register: docker-build docker-push serialize
-	flyte-cli register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} -v ${VERSION} ${CURDIR}/_pb_output/*
+	flyte-cli register-files ${INSECURE} \
+		-h ${FLYTE_HOST} \
+		-p ${PROJECT} \
+		-d ${DOMAIN} \
+		-v ${VERSION} \
+		-s ${SERVICE_ACCOUNT} \
+		${CURDIR}/_pb_output/*
 
 .PHONY: fast_serialize
 fast_serialize:
@@ -106,5 +115,10 @@ fast_serialize:
 
 .PHONY: fast_register
 fast_register: fast_serialize
-	flyte-cli fast-register-files -h ${FLYTE_HOST} ${INSECURE} -p ${PROJECT} -d ${DOMAIN} \
-		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} _pb_output/*
+	flyte-cli fast-register-files ${INSECURE} \
+		-h ${FLYTE_HOST} \
+		-p ${PROJECT} \
+		-d ${DOMAIN} \
+		-s ${SERVICE_ACCOUNT} \
+		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} \
+		${CURDIR}/_pb_output/*
