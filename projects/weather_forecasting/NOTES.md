@@ -52,7 +52,6 @@ INSECURE=true \
 FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/flyte-fast-distributions \
 REGISTRY=public.ecr.aws/nuclyde \
 make register
 ```
@@ -69,7 +68,7 @@ INSECURE=true \
 FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/flyte-fast-distributions \
+ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/cookbook \
 REGISTRY=public.ecr.aws/nuclyde \
 make fast_register
 ```
@@ -83,7 +82,6 @@ FLYTE_HOST=demo.nuclyde.io \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=demo \
 OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
-ADDL_DISTRIBUTION_DIR=s3://flyte-demo/tars \
 REGISTRY=public.ecr.aws/nuclyde \
 make register
 ```

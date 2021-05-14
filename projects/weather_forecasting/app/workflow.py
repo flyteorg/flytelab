@@ -118,24 +118,12 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
 
 
 @task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
-def update_model(
-    model_file: JoblibSerializedFile,
-    batch: data.Batch,  # type: ignore
-) -> JoblibSerializedFile:  # type: ignore
-    if model_file.path != "" and trainer.stop_training(batch.training_data):
+def update_model(model_file: JoblibSerializedFile, batch: data.Batch) -> JoblibSerializedFile:
+    if trainer.stop_training(batch.training_data):
         return model_file
 
-    if model_file.path == "":
-        model = SGDRegressor(
-            penalty="l1",
-            alpha=1.0,
-            random_state=567,
-            warm_start=True,
-            early_stopping=False,
-        )
-    else:
-        with open(model_file, "rb") as f:
-            model = joblib.load(f)
+    with open(model_file, "rb") as f:
+        model = joblib.load(f)
 
     model = trainer.update_model(model, batch.training_data)
     model_id = joblib.hash(model)
@@ -146,10 +134,21 @@ def update_model(
 
 
 @dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
-def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type: ignore
+def get_latest_model(now: datetime, batches: List[data.Batch]) -> JoblibSerializedFile:
     # TODO: need to figure out how to make these parameterized so that
     # training picks up from yesterday
-    model_file = JoblibSerializedFile(path="")
+    model = SGDRegressor(
+        penalty="l1",
+        alpha=1.0,
+        random_state=567,
+        warm_start=True,
+        early_stopping=False,
+    )
+    model_id = joblib.hash(model)
+    out = f"/tmp/{model_id}.joblib"
+    with open(out, "wb") as f:
+        joblib.dump(model, f, compress=True)
+    model_file = JoblibSerializedFile(path=out)
     for batch in batches:
         model_file = update_model(model_file=model_file, batch=batch)
     return model_file
@@ -189,6 +188,11 @@ def get_prediction(
     return types.Prediction(value=pred, error=error, date=forecast_batch[0].target_date)
 
 
+@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+def create_forecast(target_date: datetime, model_id: str, predictions: List[types.Prediction]) -> types.Forecast:
+    return types.Forecast(created_at=target_date, model_id=model_id, predictions=predictions)
+
+
 @dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_forecast(
     location: str,
@@ -210,7 +214,7 @@ def get_forecast(
         logger.info(f"[forecasting {i}] {pred}")
         predictions.insert(0, pred)  # most recent forecasts first
 
-    return types.Forecast(created_at=target_date, model_id=joblib.hash(model), predictions=predictions)
+    return create_forecast(target_date=target_date, model_id=str(joblib.hash(model)), predictions=predictions)
 
 
 @workflow
@@ -243,7 +247,7 @@ def run_pipeline(
         location=location,
         config=config
     )
-    model_file = get_latest_model(batches=batches)
+    model_file = get_latest_model(now=now, batches=batches)
     return get_forecast(
         location=location,
         target_date=now,
