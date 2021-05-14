@@ -19,7 +19,10 @@ from flytelab.weather_forecasting import data, trainer, types
 logger = logging.getLogger(__file__)
 
 
-MAX_RETRIES = 10
+MAX_RETRIES = 60
+
+request_resources = Resources(cpu="2", mem="500Mi", storage="500Mi")
+limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
 @task
@@ -65,7 +68,7 @@ def get_config(
     )
 
 
-@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
 def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
@@ -83,7 +86,7 @@ def get_training_instance_wf(location: str, target_date: datetime) -> data.Train
     return get_training_instance(location=location, target_date=target_date)
 
 
-@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@task(requests=request_resources, limits=limit_resources)
 def create_batch(
     training_data: List[data.TrainingInstance],
     validation_data: List[data.TrainingInstance]
@@ -91,7 +94,7 @@ def create_batch(
     return data.Batch(training_data=training_data, validation_data=validation_data)
 
 
-@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@dynamic(requests=request_resources, limits=limit_resources)
 def get_training_data(now: datetime, location: str, config: types.Config) -> List[data.Batch]:
     batches = []
     genesis_to_now = (now.date() - config.model.genesis_date.date()).days + 1
@@ -117,7 +120,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
     return batches
 
 
-@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@task(requests=request_resources, limits=limit_resources)
 def update_model(model_file: JoblibSerializedFile, batch: data.Batch) -> JoblibSerializedFile:
     if trainer.stop_training(batch.training_data):
         return model_file
@@ -133,7 +136,7 @@ def update_model(model_file: JoblibSerializedFile, batch: data.Batch) -> JoblibS
     return JoblibSerializedFile(path=out)
 
 
-@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@dynamic(requests=request_resources, limits=limit_resources)
 def get_latest_model(now: datetime, batches: List[data.Batch]) -> JoblibSerializedFile:
     # TODO: need to figure out how to make these parameterized so that
     # training picks up from yesterday
@@ -154,7 +157,7 @@ def get_latest_model(now: datetime, batches: List[data.Batch]) -> JoblibSerializ
     return model_file
 
 
-@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@task(requests=request_resources, limits=limit_resources)
 def get_prediction(
     model_file: JoblibSerializedFile,
     forecast_batch: List[data.TrainingInstance],
@@ -188,12 +191,12 @@ def get_prediction(
     return types.Prediction(value=pred, error=error, date=forecast_batch[0].target_date)
 
 
-@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@task(requests=request_resources, limits=limit_resources)
 def create_forecast(target_date: datetime, model_id: str, predictions: List[types.Prediction]) -> types.Forecast:
     return types.Forecast(created_at=target_date, model_id=model_id, predictions=predictions)
 
 
-@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
+@dynamic(requests=request_resources, limits=limit_resources)
 def get_forecast(
     location: str,
     target_date: datetime,

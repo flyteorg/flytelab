@@ -1,9 +1,11 @@
 import datetime
 import logging
 import os
+import time
+from dataclasses import dataclass, field
+
 import pandas as pd
 import pandera as pa
-from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 
 from functools import partial, lru_cache
@@ -27,6 +29,7 @@ DATA_ENDPOINT = f"{API_BASE_URL}/data"
 DATA_ACCESS_URL = "https://www.ncei.noaa.gov"
 DATASET_ID = "global-hourly"
 MISSING_DATA_INDICATOR = 9999
+MAX_RETRIES = 10
 
 
 logger = logging.getLogger(__file__)
@@ -90,6 +93,18 @@ def call_noaa_api(url, **params):
 
 
 @lru_cache
+def get_data_file(filepath: str) -> pd.DataFrame:
+    for i in range(MAX_RETRIES):
+        try:
+            response = requests.get(f"{DATA_ACCESS_URL}/{filepath}")
+            return pd.read_csv(StringIO(response.text), low_memory=False)
+        except Exception as exc:
+            logger.debug(f"exception while getting data file: {exc}")
+            time.sleep(1)
+    raise RuntimeError(f"could not get data file {result['filePath']} from {DATA_ACCESS_URL}")
+
+
+@lru_cache
 def get_location(location_query: str) -> geopy.Location:
     return geocode(location_query)
 
@@ -150,8 +165,7 @@ def get_global_hourly_data(location_query: str, start_date: types.DateType, end_
     for result in results:
         for station in result["stations"]:
             logger.debug(f"station: {station['name']}")
-        response = requests.get(f"{DATA_ACCESS_URL}/{result['filePath']}")
-        data.append(pd.read_csv(StringIO(response.text), low_memory=False))
+        data.append(get_data_file(result['filePath']))
 
     if len(data) == 0:
         logger.debug(f"no data found between {start_date} and {end_date} for query: {location_query}")
