@@ -11,7 +11,13 @@ ENV PYTHONPATH /root
 ARG config
 
 # This is necessary for opencv to work
-RUN apt-get update && apt-get install -y libsm6 libxext6 libxrender-dev ffmpeg build-essential
+RUN apt-get update && \
+    apt-get install -y \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    ffmpeg \
+    build-essential
 
 # Install the AWS cli separately to prevent issues with boto being written over
 RUN pip3 install awscli

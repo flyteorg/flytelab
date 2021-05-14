@@ -86,10 +86,16 @@ def call_noaa_api(url, **params):
     if params:
         url = f"{url}?{params}"
     logger.debug(f"getting data for request {url}")
-    r = requests.get(url, headers={"token": _get_api_key()})
-    if r.status_code != 200:
-        raise RuntimeError(f"call {url} failed with status code {r.status_code}")
-    return r.json()
+    for i in range(MAX_RETRIES):
+        try:
+            r = requests.get(url, headers={"token": _get_api_key()})
+            if r.status_code != 200:
+                raise RuntimeError(f"call {url} failed with status code {r.status_code}")
+            return r.json()
+        except Exception as exc:
+            logger.debug(f"exception while getting data file: {exc}")
+            time.sleep(1)
+    raise RuntimeError(f"call to noaa api {url}")
 
 
 @lru_cache
@@ -101,7 +107,7 @@ def get_data_file(filepath: str) -> pd.DataFrame:
         except Exception as exc:
             logger.debug(f"exception while getting data file: {exc}")
             time.sleep(1)
-    raise RuntimeError(f"could not get data file {result['filePath']} from {DATA_ACCESS_URL}")
+    raise RuntimeError(f"could not get data file {filepath} from {DATA_ACCESS_URL}")
 
 
 @lru_cache

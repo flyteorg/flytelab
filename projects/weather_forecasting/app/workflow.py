@@ -19,7 +19,7 @@ from flytelab.weather_forecasting import data, trainer, types
 logger = logging.getLogger(__file__)
 
 
-MAX_RETRIES = 60
+MAX_RETRIES = 10
 
 request_resources = Resources(cpu="2", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
@@ -72,12 +72,10 @@ def get_config(
 def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
-        if i > 0:
-            logger.info(f"retry {i}")
         try:
-            instance = data.get_training_instance(location, target_date.date())
-            return instance
-        except RuntimeError:
+            return data.get_training_instance(location, target_date.date())
+        except Exception as exc:
+            logger.info(f"error on retry {i}: {exc}")
             time.sleep(1)
 
 

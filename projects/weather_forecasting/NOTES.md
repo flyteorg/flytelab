@@ -97,3 +97,10 @@ ADDL_DISTRIBUTION_DIR=s3://flyte-demo/tars \
 REGISTRY=public.ecr.aws/nuclyde \
 make fast_register
 ```
+
+
+### Test NOAA API
+
+```
+docker run --rm flytelab:weather-forecasting-latest python -c 'import requests; url = "https://www.ncei.noaa.gov/access/services/search/v1/data?dataset=global-hourly&bbox=33.886823,-84.551068,33.647808,-84.28956&startDate=2021-05-10&endDate=2021-05-11&units=metric&format=json&limit=1000&offset=0"; r = requests.get(url); print(r.text)'
+```
