@@ -10,7 +10,7 @@ from typing import List
 
 from sklearn.linear_model import SGDRegressor
 
-from flytekit import task, dynamic, workflow
+from flytekit import task, dynamic, workflow, Resources
 from flytekit.types.file import JoblibSerializedFile
 
 from flytelab.weather_forecasting import data, trainer, types
@@ -65,7 +65,7 @@ def get_config(
     )
 
 
-@task
+@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
@@ -83,7 +83,7 @@ def get_training_instance_wf(location: str, target_date: datetime) -> data.Train
     return get_training_instance(location=location, target_date=target_date)
 
 
-@task
+@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def create_batch(
     training_data: List[data.TrainingInstance],
     validation_data: List[data.TrainingInstance]
@@ -91,7 +91,7 @@ def create_batch(
     return data.Batch(training_data=training_data, validation_data=validation_data)
 
 
-@dynamic
+@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_training_data(now: datetime, location: str, config: types.Config) -> List[data.Batch]:
     batches = []
     genesis_to_now = (now.date() - config.model.genesis_date.date()).days + 1
@@ -117,7 +117,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
     return batches
 
 
-@task
+@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def update_model(
     model_file: JoblibSerializedFile,
     batch: data.Batch,  # type: ignore
@@ -145,7 +145,7 @@ def update_model(
     return JoblibSerializedFile(path=out)
 
 
-@dynamic
+@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type: ignore
     # TODO: need to figure out how to make these parameterized so that
     # training picks up from yesterday
@@ -155,7 +155,7 @@ def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type
     return model_file
 
 
-@task
+@task(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_prediction(
     model_file: JoblibSerializedFile,
     forecast_batch: List[data.TrainingInstance],
@@ -189,7 +189,7 @@ def get_prediction(
     return types.Prediction(value=pred, error=error, date=forecast_batch[0].target_date)
 
 
-@dynamic
+@dynamic(requests=Resources(cpu="2", mem="500Mi"), limits=Resources(cpu="2", mem="1000Mi"))
 def get_forecast(
     location: str,
     target_date: datetime,
