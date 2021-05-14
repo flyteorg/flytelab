@@ -13,6 +13,7 @@ from typing import List, Optional
 import geopy
 import requests
 import pytz
+from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 
@@ -30,6 +31,7 @@ MISSING_DATA_INDICATOR = 9999
 
 logger = logging.getLogger(__file__)
 geolocator = Nominatim(user_agent=USER_AGENT)
+geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 tf = TimezoneFinder()
 
 
@@ -89,7 +91,7 @@ def call_noaa_api(url, **params):
 
 @lru_cache
 def get_location(location_query: str) -> geopy.Location:
-    return geolocator.geocode(location_query)
+    return geocode(location_query)
 
 
 def bounding_box(location: geopy.Location) -> List[str]:

@@ -33,7 +33,7 @@ def get_api_key(key: str) -> str:
     return fetch_key(key=key)
 
 
-@task(cache=True, cache_version="1")
+@task
 def get_config(
     model_genesis_date: datetime,
     model_prior_days_window: int,
@@ -65,7 +65,7 @@ def get_config(
     )
 
 
-@task(cache=True, cache_version="1")
+@task
 def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
@@ -83,7 +83,7 @@ def get_training_instance_wf(location: str, target_date: datetime) -> data.Train
     return get_training_instance(location=location, target_date=target_date)
 
 
-@task(cache=True, cache_version="1")
+@task
 def create_batch(
     training_data: List[data.TrainingInstance],
     validation_data: List[data.TrainingInstance]
@@ -91,7 +91,7 @@ def create_batch(
     return data.Batch(training_data=training_data, validation_data=validation_data)
 
 
-@dynamic(cache=True, cache_version="1")
+@dynamic
 def get_training_data(now: datetime, location: str, config: types.Config) -> List[data.Batch]:
     batches = []
     genesis_to_now = (now.date() - config.model.genesis_date.date()).days + 1
@@ -117,7 +117,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
     return batches
 
 
-@task(cache=True, cache_version="1")
+@task
 def update_model(
     model_file: JoblibSerializedFile,
     batch: data.Batch,  # type: ignore
@@ -145,7 +145,7 @@ def update_model(
     return JoblibSerializedFile(path=out)
 
 
-@dynamic(cache=True, cache_version="1")
+@dynamic
 def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type: ignore
     # TODO: need to figure out how to make these parameterized so that
     # training picks up from yesterday
@@ -155,7 +155,7 @@ def get_latest_model(batches: List[data.Batch]) -> JoblibSerializedFile:  # type
     return model_file
 
 
-@task(cache=True, cache_version="1")
+@task
 def get_prediction(
     model_file: JoblibSerializedFile,
     forecast_batch: List[data.TrainingInstance],
@@ -189,7 +189,7 @@ def get_prediction(
     return types.Prediction(value=pred, error=error, date=forecast_batch[0].target_date)
 
 
-@dynamic(cache=True, cache_version="1")
+@dynamic
 def get_forecast(
     location: str,
     target_date: datetime,
