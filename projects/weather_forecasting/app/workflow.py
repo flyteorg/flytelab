@@ -25,6 +25,10 @@ request_resources = Resources(cpu="2", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
+def floor_date(dt: datetime):
+    return datetime(dt.year, dt.month, dt.day)
+
+
 @task
 def fetch_key(key: str) -> str:
     print("fetching API key")
@@ -95,7 +99,8 @@ def create_batch(
 @dynamic(requests=request_resources, limits=limit_resources)
 def get_training_data(now: datetime, location: str, config: types.Config) -> List[data.Batch]:
     batches = []
-    genesis_to_now = (now.date() - config.model.genesis_date.date()).days + 1
+    genesis_datetime = floor_date(config.model.genesis_date)
+    genesis_to_now = (now.date() - genesis_datetime.date()).days + 1
     for i, n_days in enumerate(
         itertools.chain(
             # prior days knowledge lookback from the genesis date
@@ -104,7 +109,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
             range(1, genesis_to_now),
         )
     ):
-        target_date = config.model.genesis_date + timedelta(days=n_days)
+        target_date = genesis_datetime + timedelta(days=n_days)
         logger.info(f"[batch {i}] getting training/validation batches for target date {target_date}")
         training_data: List[data.TrainingInstance] = [
             get_training_instance(location=location, target_date=target_date - timedelta(days=j))
@@ -204,6 +209,8 @@ def get_forecast(
     with open(model_file, "rb") as f:
         model = joblib.load(f)
 
+    # set time components to 0
+    target_date = floor_date(target_date)
     predictions: List[types.Prediction] = []
     for i, n_days in enumerate(range(int(config.forecast.n_days) + 1)):
         forecast_date = target_date + timedelta(days=n_days)
