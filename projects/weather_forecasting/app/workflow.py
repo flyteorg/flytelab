@@ -72,8 +72,7 @@ def get_config(
     )
 
 
-@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
-def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
+def get_instance(location: str, target_date: datetime) -> data.TrainingInstance:
     logger.info(f"getting training/validation batches for target date {target_date}")
     for i in range(MAX_RETRIES):
         try:
@@ -81,6 +80,16 @@ def get_training_instance(location: str, target_date: datetime) -> data.Training
         except Exception as exc:
             logger.info(f"error on retry {i}: {exc}")
             time.sleep(1)
+
+
+@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
+def get_training_instance(location: str, target_date: datetime) -> data.TrainingInstance:
+    return get_instance(location, target_date)
+
+
+@task(requests=request_resources, limits=limit_resources)
+def get_partial_instance(location: str, target_date: datetime) -> data.TrainingInstance:
+    return get_instance(location, target_date)
 
 
 @workflow
@@ -113,10 +122,12 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Lis
         logger.info(f"[batch {i}] getting training/validation batches for target date {target_date}")
         training_data: List[data.TrainingInstance] = [
             get_training_instance(location=location, target_date=target_date - timedelta(days=j))
+            if target_date != now
+            else get_partial_instance(location=location, target_date=target_date - timedelta(days=j))
             for j in range(int(config.model.batch_size))
         ]
         validation_data: List[data.TrainingInstance] = [
-            get_training_instance(location=location, target_date=target_date + timedelta(days=j))
+            get_partial_instance(location=location, target_date=target_date + timedelta(days=j))
             for j in range(int(config.model.validation_size))
         ]
         batches.append(create_batch(training_data=training_data, validation_data=validation_data))
@@ -215,7 +226,7 @@ def get_forecast(
     for i, n_days in enumerate(range(int(config.forecast.n_days) + 1)):
         forecast_date = target_date + timedelta(days=n_days)
         forecast_batch = [
-            get_training_instance(location=location, target_date=forecast_date - timedelta(days=j))
+            get_incomplete_instance(location=location, target_date=forecast_date - timedelta(days=j))
             for j in range(1, int(config.model.batch_size) + 1)
         ]
         pred = get_prediction(model_file=model_file, forecast_batch=forecast_batch, predictions=predictions)
@@ -249,7 +260,7 @@ def run_pipeline(
     )
     logger.info("training model with config:")
     logger.info(config)
-    now = datetime.now()
+    now = floor_date(datetime.now())
     batches = get_training_data(
         now=now,
         location=location,
