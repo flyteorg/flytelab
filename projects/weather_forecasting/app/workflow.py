@@ -22,15 +22,16 @@ logger = logging.getLogger(__file__)
 
 
 MAX_RETRIES = 10
+CACHE_VERSION = "1"
 
-request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
+request_resources = Resources(cpu=CACHE_VERSION, mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 TrainingData = NamedTuple("TrainingData", batches=List[data.Batch], imputation_date=datetime)
 
 
 def floor_date(dt: datetime):
-    return datetime(dt.year, dt.month, dt.day)
+    return datetime(dt.year, dt.month, dt.day, tzinfo=None)
 
 def to_datetime(date: date):
     return datetime(date.year, date.month, date.day)
@@ -95,7 +96,7 @@ def get_instance(location: str, target_date: datetime, instance_config: types.In
             time.sleep(1)
 
 
-@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
+@task(retries=10, cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
 def get_training_instance(
     location: str,
     target_date: datetime,
@@ -104,7 +105,7 @@ def get_training_instance(
     return get_instance(location, target_date, instance_config)
 
 
-@task(requests=request_resources, limits=limit_resources)
+@task(retries=10, requests=request_resources, limits=limit_resources)
 def get_partial_instance(
     location: str,
     target_date: datetime,
@@ -131,8 +132,8 @@ def create_batch(
     validation_data: List[data.TrainingInstance]
 ) -> data.Batch:
     return data.Batch(
-        training_data=[x for x in training_data if not pd.isna(x.target)],
-        validation_data=[x for x in validation_data if not pd.isna(x.target)],
+        training_data=[x for x in training_data if x is not None and not pd.isna(x.target)],
+        validation_data=[x for x in validation_data if not x is not None and pd.isna(x.target)],
     )
 
 
@@ -156,6 +157,7 @@ def prepare_training_data(batches: List[data.Batch]) -> TrainingData:
 @dynamic(requests=request_resources, limits=limit_resources)
 def get_training_data(now: datetime, location: str, config: types.Config) -> TrainingData:
     batches = []
+    now = floor_date(now)
     genesis_datetime = floor_date(config.model.genesis_date)
     genesis_to_now = (now.date() - genesis_datetime.date()).days + 1
     # imputation date indicates when we need to start imputing data since the primary data source
@@ -176,7 +178,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Tra
                 target_date=target_date - timedelta(days=j),
                 instance_config=config.instance
             )
-            if target_date != now
+            if (target_date - timedelta(days=j)) < now
             else get_partial_instance(
                 location=location,
                 target_date=target_date - timedelta(days=j),
@@ -196,7 +198,7 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> Tra
     return prepare_training_data(batches=batches)
 
 
-@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
+@task(cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
 def init_model(
     genesis_date: datetime,
     model_config: types.ModelConfig,
@@ -222,7 +224,7 @@ def init_model(
     return JoblibSerializedFile(path=out_file)
 
 
-@task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
+@task(cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
 def update_model(
     model_file: JoblibSerializedFile,
     batch: data.Batch,
@@ -247,7 +249,7 @@ def update_model(
     return JoblibSerializedFile(path=out)
 
 
-@dynamic(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
+@dynamic(cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
 def get_latest_model(config: types.Config, batches: List[data.Batch]) -> JoblibSerializedFile:
     model_file = init_model(
         genesis_date=config.model.genesis_date,
@@ -306,21 +308,27 @@ def create_forecast(target_date: datetime, model_id: str, predictions: List[type
 @dynamic(requests=request_resources, limits=limit_resources)
 def get_forecast(
     location: str,
-    target_date: datetime,
+    now: datetime,
     imputation_date: datetime,
     model_file: JoblibSerializedFile,
     config: types.Config
 ) -> types.Forecast:
     # set time components to 0
-    target_date = floor_date(target_date)
+    now = floor_date(now)
     predictions: List[types.Prediction] = []
 
     # NOTE: this workflow assumes datetimes are timezone-unaware
-    n_imputations = (target_date - imputation_date.replace(tzinfo=None)).days
+    n_imputations = (now - floor_date(imputation_date)).days
     for i, n_days in enumerate(range(int(config.forecast.n_days) + n_imputations + 1)):
-        forecast_date = imputation_date + timedelta(days=n_days)
+        forecast_date = floor_date(imputation_date + timedelta(days=n_days))
         forecast_batch = [
-            get_partial_instance(
+            get_training_instance(
+                location=location,
+                target_date=forecast_date - timedelta(days=j),
+                instance_config=config.instance
+            )
+            if (forecast_date - timedelta(days=j)) < now
+            else get_partial_instance(
                 location=location,
                 target_date=forecast_date - timedelta(days=j),
                 instance_config=config.instance
@@ -332,7 +340,7 @@ def get_forecast(
         predictions.insert(0, pred)  # most recent forecasts first
 
     return create_forecast(
-        target_date=target_date,
+        target_date=now,
         model_id=Path(model_file).stem,
         # don't return imputations
         predictions=predictions[:-n_imputations],
@@ -368,7 +376,7 @@ def run_pipeline(
     model_file = get_latest_model(config=config, batches=batches)
     return get_forecast(
         location=location,
-        target_date=now,
+        now=now,
         imputation_date=imputation_date,
         model_file=model_file,
         config=config,
