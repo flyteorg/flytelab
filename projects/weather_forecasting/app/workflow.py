@@ -129,7 +129,7 @@ def create_batch(
 
 
 @task(requests=request_resources, limits=limit_resources)
-def stop_training(training_data: List[data.TrainingInstance]):
+def stop_training(training_data: List[data.TrainingInstance]) -> bool:
     """Stop training when the most recent instance has a null target."""
     return pd.isna(training_data[0].target)
 
