@@ -6,9 +6,9 @@ import os
 import pandas as pd
 import time
 from dataclasses import astuple
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import List
+from typing import List, NamedTuple
 
 from sklearn.linear_model import SGDRegressor
 
@@ -23,12 +23,17 @@ logger = logging.getLogger(__file__)
 
 MAX_RETRIES = 10
 
-request_resources = Resources(cpu="2", mem="500Mi", storage="500Mi")
+request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
+
+TrainingData = NamedTuple("TrainingData", batches=List[data.Batch], imputation_date=datetime)
 
 
 def floor_date(dt: datetime):
     return datetime(dt.year, dt.month, dt.day)
+
+def to_datetime(date: date):
+    return datetime(date.year, date.month, date.day)
 
 
 @task
@@ -125,23 +130,36 @@ def create_batch(
     training_data: List[data.TrainingInstance],
     validation_data: List[data.TrainingInstance]
 ) -> data.Batch:
-    return data.Batch(training_data=training_data, validation_data=validation_data)
+    return data.Batch(
+        training_data=[x for x in training_data if not pd.isna(x.target)],
+        validation_data=[x for x in validation_data if not pd.isna(x.target)],
+    )
 
 
 @task(requests=request_resources, limits=limit_resources)
-def stop_training(training_data: List[data.TrainingInstance]) -> bool:
+def prepare_training_data(batches: List[data.Batch]) -> TrainingData:
     """Stop training when the most recent instance has a null target."""
-    return pd.isna(training_data[0].target)
+    output_batches: List[data.Batch] = []
+    last_instance = batches[-1].training_data[0]
+    imputation_date = last_instance.target_date
+
+    for batch in batches:
+        if pd.isna(batch.training_data[0]):
+            # exclude batches from where the target of the first record in the training data is null
+            imputation_date = batch.training_data[0].target_date
+            break
+        output_batches.append(batch)
+
+    return output_batches, to_datetime(imputation_date)
 
 
 @dynamic(requests=request_resources, limits=limit_resources)
-def get_training_data(now: datetime, location: str, config: types.Config) -> (List[data.Batch], datetime):  # type: ignore
+def get_training_data(now: datetime, location: str, config: types.Config) -> TrainingData:
     batches = []
     genesis_datetime = floor_date(config.model.genesis_date)
     genesis_to_now = (now.date() - genesis_datetime.date()).days + 1
     # imputation date indicates when we need to start imputing data since the primary data source
     # doesn't have temperature data starting from this date.
-    imputation_date = now
     for i, n_days in enumerate(
         itertools.chain(
             # prior days knowledge lookback from the genesis date
@@ -166,12 +184,6 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> (Li
             )
             for j in range(int(config.model.batch_size))
         ]
-
-        if stop_training(training_data=training_data):
-            imputation_date = target_date
-            logging.info(f"stop training at {target_date}, target has null value.")
-            break
-
         validation_data: List[data.TrainingInstance] = [
             get_partial_instance(
                 location=location,
@@ -181,11 +193,15 @@ def get_training_data(now: datetime, location: str, config: types.Config) -> (Li
             for j in range(int(config.model.validation_size))
         ]
         batches.append(create_batch(training_data=training_data, validation_data=validation_data))
-    return batches, imputation_date
+    return prepare_training_data(batches=batches)
 
 
 @task(cache=True, cache_version="1", requests=request_resources, limits=limit_resources)
-def init_model(genesis_date: datetime, model_config: types.ModelConfig, instance_config: types.InstanceConfig):
+def init_model(
+    genesis_date: datetime,
+    model_config: types.ModelConfig,
+    instance_config: types.InstanceConfig
+) -> JoblibSerializedFile:
     # TODO: model hyperparameters should be in the config
     model = SGDRegressor(
         penalty="l1",

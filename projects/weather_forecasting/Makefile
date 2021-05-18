@@ -105,6 +105,8 @@ register: docker-build docker-push serialize
 		-p ${PROJECT} \
 		-d ${DOMAIN} \
 		-v ${VERSION} \
+		-s ${SERVICE_ACCOUNT} \
+		-o ${OUTPUT_DATA_PREFIX} \
 		${CURDIR}/_pb_output/*
 
 .PHONY: fast_serialize
@@ -122,5 +124,7 @@ fast_register: fast_serialize
 		-h ${FLYTE_HOST} \
 		-p ${PROJECT} \
 		-d ${DOMAIN} \
+		-s ${SERVICE_ACCOUNT} \
+		-o ${OUTPUT_DATA_PREFIX} \
 		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} \
 		_pb_output/*
