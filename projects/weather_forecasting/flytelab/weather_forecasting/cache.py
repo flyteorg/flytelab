@@ -6,7 +6,7 @@ from dataclasses import asdict
 from hashlib import md5
 from functools import lru_cache, partial, wraps
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -26,14 +26,25 @@ def create_hash_id(*data):
 
 
 @lru_cache
-def create_id(target_date, *data):
-    return f"{target_date.strftime(r'%Y%m%d')}_{create_hash_id(*data)}"
+def create_id(date, *data) -> str:
+    return f"{date.strftime(r'%Y%m%d')}_{create_hash_id(*data)}"
 
 
-@lru_cache
-def create_model_id(config):
-    model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
-    return create_id(config["model"]["genesis_date"], *model_id_data)
+def create_model_id(
+    genesis_date: datetime.date,
+    update_date: datetime.date,
+    model_config: types.ModelConfig,
+    instance_config: types.InstanceConfig,
+    instances: Optional[List[data.TrainingInstance]] = None,
+) -> str:
+    """Create a model identified by its genesis date, update date, and configuration
+    """
+    hash_data = [str(x).encode() for x in (model_config, instance_config)]
+    if instances:
+        hash_data = [*hash_data, *[instance.id.encode() for instance in instances]]
+    return (
+        f"{genesis_date.strftime(r'%Y%m%d')}_{update_date.strftime(r'%Y%m%d')}_{create_hash_id(*hash_data)}"
+    )
 
 
 def cache_instance(get_instance_fn: Callable[..., data.TrainingInstance] = None, *, cache_dir, **instance_config):
@@ -94,8 +105,8 @@ def cache_model(
         [BaseEstimator, List[data.TrainingInstance], List[data.TrainingInstance]],
         List[types.Metrics],
     ],
-    cache_dir,
-    **config,
+    cache_dir: str,
+    config: types.Config,
 ):
     """Decorator to automatically cache model updates."""
     if update_model_fn is None:
@@ -103,7 +114,7 @@ def cache_model(
 
     # consists of "{genesis_date}_{hash_of_config}"
     model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
-    model_dir_id = create_id(config["model"]["genesis_date"], *model_id_data)
+    model_dir_id = create_id(config.model.genesis_date, *model_id_data)
     cache_model_dir = Path(cache_dir) / model_dir_id
 
     # path for root model (no training data)
@@ -161,7 +172,7 @@ def cache_model(
             log_metrics = {k: f"{v:0.04f}" if isinstance(v, float) else v for k, v in metric.items()}
             logger.info(f"[metric] {log_metrics}")
         # only cache metrics if number of instances in validation batch matches validation size
-        if config["model"]["validation_size"] == len(validation_batch):
+        if config.model.validation_size == len(validation_batch):
             with model_metrics_path.open("w") as f:
                 json.dump(metrics, f, indent=4, default=str)
 

@@ -180,7 +180,7 @@ if __name__ == "__main__":
         update_model,
         eval_model_fn=partial(evaluate_model, config.metrics.scorers),
         cache_dir="./.cache/models",
-        **config
+        config=config,
     )
 
     model = None

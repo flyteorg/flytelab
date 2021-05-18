@@ -1,3 +1,4 @@
+import json
 import datetime
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json, config
@@ -19,6 +20,13 @@ def date_field_config():
             if isinstance(x, datetime.date)
             else datetime.datetime.fromisoformat(x)
         ),
+    )
+
+
+def features_field_config():
+    return config(
+        encoder=lambda x: json.dumps([float(i) for i in x]),
+        decoder=lambda x: json.loads(x),
     )
 
 

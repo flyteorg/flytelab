@@ -56,7 +56,7 @@ class RawTrainingInstance:
 @dataclass_json
 @dataclass
 class TrainingInstance:
-    features: List[float]
+    features: List[float] = field(metadata=types.features_field_config())
     target: Optional[float]
     target_is_complete: bool  # whether or not target is based on 24 hours worth of weather data
     target_date: types.DateType = field(metadata=types.date_field_config())
@@ -287,5 +287,5 @@ def get_training_instance(
 
 
 if __name__ == "__main__":
-    target_date = datetime.datetime.now() - datetime.timedelta(days=3)
+    target_date = datetime.datetime.now()
     training_instance = get_training_instance("Atlanta, GA US", target_date.date())
