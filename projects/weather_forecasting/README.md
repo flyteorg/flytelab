@@ -147,3 +147,14 @@ Get data
 ```
 python -m flytelab.weather_forecasting.trainer
 ```
+
+
+## Streamlit App
+
+To run locally:
+
+```
+pip install streamlit
+export FLYTE_CREDENTIALS_CLIENT_SECRET=<secret>
+streamlit run dashboard/weather_forecasting.py
+```
