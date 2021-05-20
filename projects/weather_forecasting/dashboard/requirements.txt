@@ -1,3 +1,10 @@
 git+git://github.com/flyteorg/flytelab@main#subdirectory=projects/weather_forecasting&egg=flytelab-weather-forecasting
 flytekit==0.19.0b1
 streamlit
+geopy
+joblib
+pandas
+pandera
+requests
+sklearn
+timezonefinder
