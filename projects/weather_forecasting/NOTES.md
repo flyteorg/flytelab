@@ -23,12 +23,12 @@ flyte-cli -i \
 ### Remote
 
 ```bash
-flyte-cli register-project -h demo.nuclyde.io -p flytelab -n flytelab -d 'ML projects using Flyte'
+flyte-cli register-project -h sandbox.uniondemo.run -p flytelab -n flytelab -d 'ML projects using Flyte'
 ```
 
 ```bash
 flyte-cli \
-    -h demo.nuclyde.io \
+    -h sandbox.uniondemo.run \
     -p flytelab \
     -d development update-cluster-resource-attributes \
     --attributes projectQuotaCpu 16 \
@@ -73,12 +73,12 @@ REGISTRY=public.ecr.aws/nuclyde \
 make fast_register
 ```
 
-## Production [demo.nuclyde.io](https://demo.nuclyde.io/console)
+## Production [sandbox.uniondemo.run](https://sandbox.uniondemo.run/console)
 
 ### Register Workflows
 
 ```bash
-FLYTE_HOST=demo.nuclyde.io \
+FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=demo \
 OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
@@ -89,7 +89,7 @@ make register
 ### Fast Registering New Code
 
 ```bash
-FLYTE_HOST=demo.nuclyde.io \
+FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=demo \
 OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
