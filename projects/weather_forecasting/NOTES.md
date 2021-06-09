@@ -80,7 +80,7 @@ make fast_register
 ```bash
 FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
-SERVICE_ACCOUNT=demo \
+SERVICE_ACCOUNT=default \
 OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
 REGISTRY=public.ecr.aws/nuclyde \
 make register
@@ -91,7 +91,7 @@ make register
 ```bash
 FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
-SERVICE_ACCOUNT=demo \
+SERVICE_ACCOUNT=default \
 OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
 ADDL_DISTRIBUTION_DIR=s3://flyte-demo/tars \
 REGISTRY=public.ecr.aws/nuclyde \
