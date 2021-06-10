@@ -52,7 +52,7 @@ INSECURE=true \
 FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-REGISTRY=public.ecr.aws/nuclyde \
+REGISTRY=public.ecr.aws/r1m6i5g8 \
 make register
 ```
 
@@ -69,7 +69,7 @@ FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
 ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/cookbook \
-REGISTRY=public.ecr.aws/nuclyde \
+REGISTRY=public.ecr.aws/r1m6i5g8 \
 make fast_register
 ```
 
@@ -81,8 +81,8 @@ make fast_register
 FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
-REGISTRY=public.ecr.aws/nuclyde \
+OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
+REGISTRY=public.ecr.aws/r1m6i5g8 \
 make register
 ```
 
@@ -92,9 +92,9 @@ make register
 FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flyte-demo/raw_data \
-ADDL_DISTRIBUTION_DIR=s3://flyte-demo/tars \
-REGISTRY=public.ecr.aws/nuclyde \
+OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
+ADDL_DISTRIBUTION_DIR=s3://flytelab/fast \
+REGISTRY=public.ecr.aws/r1m6i5g8 \
 make fast_register
 ```
 
@@ -104,5 +104,5 @@ make fast_register
 This makes sure that a docker image is able to call the NOAA API and return a valid result.
 
 ```
-docker run --rm public.ecr.aws/nuclyde/flytelab:weather-forecasting-latest python -c 'import requests; url = "https://www.ncei.noaa.gov/access/services/search/v1/data?dataset=global-hourly&bbox=33.886823,-84.551068,33.647808,-84.28956&startDate=2021-05-10&endDate=2021-05-11&units=metric&format=json&limit=1000&offset=0"; r = requests.get(url); print(r.text)'
+docker run --rm public.ecr.aws/r1m6i5g8/flytelab:weather-forecasting-latest python -c 'import requests; url = "https://www.ncei.noaa.gov/access/services/search/v1/data?dataset=global-hourly&bbox=33.886823,-84.551068,33.647808,-84.28956&startDate=2021-05-10&endDate=2021-05-11&units=metric&format=json&limit=1000&offset=0"; r = requests.get(url); print(r.text)'
 ```
