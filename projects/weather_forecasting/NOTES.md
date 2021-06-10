@@ -98,6 +98,20 @@ REGISTRY=public.ecr.aws/r1m6i5g8 \
 make fast_register
 ```
 
+### Activating Launch Plans
+
+List launch plan versions
+
+```bash
+flyte-cli -h sandbox.uniondemo.run -p flytelab -d development list-launch-plan-versions
+```
+
+Get the `urn` of the launch plan you want to activate, e.g. `lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a`
+
+```bash
+flyte-cli update-launch-plan -h sandbox.uniondemo.run --state active -u lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a
+```
+
 
 ### Test NOAA API
 

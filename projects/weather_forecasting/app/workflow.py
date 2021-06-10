@@ -12,7 +12,8 @@ from typing import List, NamedTuple
 
 from sklearn.linear_model import SGDRegressor
 
-from flytekit import task, dynamic, workflow, Resources
+from flytekit import task, dynamic, workflow, FixedRate, LaunchPlan, Resources, Slack
+from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
 
 from flytelab.weather_forecasting import cache, data, trainer, types
@@ -96,7 +97,14 @@ def get_instance(location: str, target_date: datetime, instance_config: types.In
             time.sleep(1)
 
 
-@task(retries=10, cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
+@task(
+    retries=30,
+    timeout=240,
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources
+)
 def get_training_instance(
     location: str,
     target_date: datetime,
@@ -105,7 +113,7 @@ def get_training_instance(
     return get_instance(location, target_date, instance_config)
 
 
-@task(retries=10, requests=request_resources, limits=limit_resources)
+@task(retries=30, timeout=240, requests=request_resources, limits=limit_resources)
 def get_partial_instance(
     location: str,
     target_date: datetime,
@@ -348,7 +356,7 @@ def get_forecast(
 
 
 @workflow
-def run_pipeline(
+def forecast_weather(
     location: str,
     model_genesis_date: datetime = datetime.now(),
     model_prior_days_window: int = 3,
@@ -383,8 +391,32 @@ def run_pipeline(
     )
 
 
+################
+# Launch Plans #
+################
+
+atlanta_lp = LaunchPlan.create(
+    workflow=forecast_weather,
+    name="atlanta_weather_forecast",
+    fixed_inputs={"location": "Atlanta, GA USA"},
+    schedule=FixedRate(duration=timedelta(minutes=15)),
+    notifications=[
+        Slack(
+            phases=[
+                WorkflowExecutionPhase.SUCCEEDED,
+                WorkflowExecutionPhase.TIMED_OUT,
+                WorkflowExecutionPhase.FAILED,
+            ],
+            recipients_email=[
+                "flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com",
+            ],
+        )
+    ]
+)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
-    forecast = run_pipeline(location="Atlanta, GA US", model_genesis_date=datetime(2021, 5, 14))
+    forecast = forecast_weather(location="Atlanta, GA US", model_genesis_date=datetime(2021, 6, 7))
     logger.info("forecast")
     logger.info(forecast)
