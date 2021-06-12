@@ -100,12 +100,15 @@ def call_noaa_api(url, **params):
 
 @lru_cache
 def get_data_file(filepath: str) -> pd.DataFrame:
+    if filepath.startswith("/"):
+        filepath = filepath[1:]
     for i in range(MAX_RETRIES):
         try:
             response = requests.get(f"{DATA_ACCESS_URL}/{filepath}")
             return pd.read_csv(StringIO(response.text), low_memory=False)
         except Exception as exc:
             logger.debug(f"exception while getting data file: {exc}")
+            import ipdb; ipdb.set_trace()
             time.sleep(1)
     raise RuntimeError(f"could not get data file {filepath} from {DATA_ACCESS_URL}")
 

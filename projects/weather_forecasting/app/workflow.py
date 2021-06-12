@@ -99,7 +99,7 @@ def get_instance(location: str, target_date: datetime, instance_config: types.In
 
 @task(
     retries=30,
-    timeout=240,
+    timeout=600,
     cache=True,
     cache_version=CACHE_VERSION,
     requests=request_resources,
@@ -113,7 +113,7 @@ def get_training_instance(
     return get_instance(location, target_date, instance_config)
 
 
-@task(retries=30, timeout=240, requests=request_resources, limits=limit_resources)
+@task(retries=30, timeout=600, requests=request_resources, limits=limit_resources)
 def get_partial_instance(
     location: str,
     target_date: datetime,
@@ -395,23 +395,50 @@ def forecast_weather(
 # Launch Plans #
 ################
 
+FIXED_RATE = FixedRate(duration=timedelta(days=1))
+SLACK_NOTIFICATION = Slack(
+    phases=[
+        WorkflowExecutionPhase.SUCCEEDED,
+        WorkflowExecutionPhase.TIMED_OUT,
+        WorkflowExecutionPhase.FAILED,
+    ],
+    recipients_email=[
+        "flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com",
+    ],
+)
+DEFAULT_INPUTS = {
+    "model_genesis_date": datetime(2021, 6, 5),
+    "model_prior_days_window": 7,
+    "instance_lookback_window": 7,
+    "instance_n_year_lookback": 1,
+    "forecast_n_days": 7,
+}
+
 atlanta_lp = LaunchPlan.create(
     workflow=forecast_weather,
     name="atlanta_weather_forecast",
+    default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Atlanta, GA USA"},
-    schedule=FixedRate(duration=timedelta(minutes=15)),
-    notifications=[
-        Slack(
-            phases=[
-                WorkflowExecutionPhase.SUCCEEDED,
-                WorkflowExecutionPhase.TIMED_OUT,
-                WorkflowExecutionPhase.FAILED,
-            ],
-            recipients_email=[
-                "flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com",
-            ],
-        )
-    ]
+    schedule=FIXED_RATE,
+    notifications=[SLACK_NOTIFICATION],
+)
+
+seattle_lp = LaunchPlan.create(
+    workflow=forecast_weather,
+    name="seattle_weather_forecast",
+    default_inputs=DEFAULT_INPUTS,
+    fixed_inputs={"location": "Seattle, WA USA"},
+    schedule=FIXED_RATE,
+    notifications=[SLACK_NOTIFICATION],
+)
+
+hyderabad_lp = LaunchPlan.create(
+    workflow=forecast_weather,
+    name="hyderabad_weather_forecast",
+    default_inputs=DEFAULT_INPUTS,
+    fixed_inputs={"location": "Hyderabad, Telangana, IND"},
+    schedule=FIXED_RATE,
+    notifications=[SLACK_NOTIFICATION],
 )
 
 

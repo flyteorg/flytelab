@@ -82,7 +82,7 @@ def cache_instance(get_instance_fn: Callable[..., data.TrainingInstance] = None,
     @wraps(get_instance_fn)
     def wrapped_instance_fn(
         location_query: str,
-        target_date: data.DateType,
+        target_date: types.DateType,
     ):
         return get_instance(
             create_id(
@@ -113,7 +113,7 @@ def cache_model(
         return partial(cache_model, cache_dir=cache_dir)
 
     # consists of "{genesis_date}_{hash_of_config}"
-    model_id_data = [str(config[key]).encode() for key in ["model", "instance"]]
+    model_id_data = [str(asdict(config)[key]).encode() for key in ["model", "instance"]]
     model_dir_id = create_id(config.model.genesis_date, *model_id_data)
     cache_model_dir = Path(cache_dir) / model_dir_id
 

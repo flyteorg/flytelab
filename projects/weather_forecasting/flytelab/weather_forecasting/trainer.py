@@ -3,7 +3,7 @@ import datetime
 import json
 import itertools
 import logging
-from dataclasses import astuple
+from dataclasses import astuple, asdict
 from functools import partial
 from typing import List, Optional
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
     from pathlib import Path
 
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
+    logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(asctime)s:: %(message)s")
     logger = logging.getLogger(__file__)
 
     config = types.Config(
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     logger.info(f"training model with config:\n{json.dumps(config, indent=4, default=str)}")
 
     get_training_instance = cache.cache_instance(
-        data.get_training_instance, cache_dir="./.cache/training_data", **config.instance
+        data.get_training_instance, cache_dir="./.cache/training_data", **asdict(config.instance)
     )
     update_model_fn = cache.cache_model(
         update_model,
