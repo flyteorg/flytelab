@@ -112,7 +112,6 @@ Get the `urn` of the launch plan you want to activate, e.g. `lp:flytelab:develop
 flyte-cli update-launch-plan -h sandbox.uniondemo.run --state active -u lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a
 ```
 
-
 ### Test NOAA API
 
 This makes sure that a docker image is able to call the NOAA API and return a valid result.

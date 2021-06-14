@@ -12,7 +12,7 @@ from typing import List, NamedTuple
 
 from sklearn.linear_model import SGDRegressor
 
-from flytekit import task, dynamic, workflow, FixedRate, LaunchPlan, Resources, Slack
+from flytekit import task, dynamic, workflow, CronSchedule, LaunchPlan, Resources, Slack
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
 
@@ -395,7 +395,7 @@ def forecast_weather(
 # Launch Plans #
 ################
 
-FIXED_RATE = FixedRate(duration=timedelta(days=1))
+SCHEDULE = CronSchedule("0/15 * * * ? *")
 SLACK_NOTIFICATION = Slack(
     phases=[
         WorkflowExecutionPhase.SUCCEEDED,
@@ -414,30 +414,30 @@ DEFAULT_INPUTS = {
     "forecast_n_days": 7,
 }
 
-atlanta_lp = LaunchPlan.create(
+atlanta_lp = LaunchPlan.get_or_create(
     workflow=forecast_weather,
     name="atlanta_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Atlanta, GA USA"},
-    schedule=FIXED_RATE,
+    schedule=SCHEDULE,
     notifications=[SLACK_NOTIFICATION],
 )
 
-seattle_lp = LaunchPlan.create(
+seattle_lp = LaunchPlan.get_or_create(
     workflow=forecast_weather,
     name="seattle_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Seattle, WA USA"},
-    schedule=FIXED_RATE,
+    schedule=SCHEDULE,
     notifications=[SLACK_NOTIFICATION],
 )
 
-hyderabad_lp = LaunchPlan.create(
+hyderabad_lp = LaunchPlan.get_or_create(
     workflow=forecast_weather,
     name="hyderabad_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Hyderabad, Telangana, IND"},
-    schedule=FIXED_RATE,
+    schedule=SCHEDULE,
     notifications=[SLACK_NOTIFICATION],
 )
 
