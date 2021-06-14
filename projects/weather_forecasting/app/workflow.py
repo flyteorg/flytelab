@@ -395,7 +395,6 @@ def forecast_weather(
 # Launch Plans #
 ################
 
-SCHEDULE = CronSchedule("0/15 * * * ? *")
 SLACK_NOTIFICATION = Slack(
     phases=[
         WorkflowExecutionPhase.SUCCEEDED,
@@ -419,7 +418,7 @@ atlanta_lp = LaunchPlan.get_or_create(
     name="atlanta_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Atlanta, GA USA"},
-    schedule=SCHEDULE,
+    schedule=CronSchedule("0/15 * * * ? *"),
     notifications=[SLACK_NOTIFICATION],
 )
 
@@ -428,7 +427,7 @@ seattle_lp = LaunchPlan.get_or_create(
     name="seattle_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Seattle, WA USA"},
-    schedule=SCHEDULE,
+    schedule=CronSchedule("5/15 * * * ? *"),
     notifications=[SLACK_NOTIFICATION],
 )
 
@@ -437,7 +436,7 @@ hyderabad_lp = LaunchPlan.get_or_create(
     name="hyderabad_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Hyderabad, Telangana, IND"},
-    schedule=SCHEDULE,
+    schedule=CronSchedule("10/15 * * * ? *"),
     notifications=[SLACK_NOTIFICATION],
 )
 
