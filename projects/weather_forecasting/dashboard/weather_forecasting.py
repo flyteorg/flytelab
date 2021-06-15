@@ -64,7 +64,12 @@ executions, _ = client.list_executions_paginated(
 )
 
 wf_execution = FlyteWorkflowExecution.fetch("flytelab", "development", executions[0].id.name)
-forecast = types.Forecast.from_json(MessageToJson(wf_execution.outputs.literals['o0'].scalar.generic))
+if "forecast" in wf_execution.outputs.literals:
+    forecast_key = "forecast"
+else:
+    forecast_key = "o0"
+
+forecast = types.Forecast.from_json(MessageToJson(wf_execution.outputs.literals[forecast_key].scalar.generic))
 
 with st.beta_expander("Model Metadata"):
     st.markdown(f"""
