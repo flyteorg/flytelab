@@ -238,11 +238,13 @@ def update_model(
     batch: data.Batch,
     model_config: types.ModelConfig,
     instance_config: types.InstanceConfig,
-) -> JoblibSerializedFile:
+    metrics_config: types.MetricsConfig,
+) -> (JoblibSerializedFile, List[types.Metrics]):  # type: ignore
     with open(model_file, "rb") as f:
         model = joblib.load(f)
 
     model = trainer.update_model(model, batch.training_data)
+    metrics = trainer.evaluate_model(metrics_config.scorers, model, batch.training_data, batch.validation_data)
     model_id = cache.create_model_id(
         genesis_date=model_config.genesis_date.date(),
         # the first element in the training data should be the most recent training example
@@ -254,24 +256,30 @@ def update_model(
     out = f"/tmp/{model_id}.joblib"
     with open(out, "wb") as f:
         joblib.dump(model, f, compress=True)
-    return JoblibSerializedFile(path=out)
+    return JoblibSerializedFile(path=out), metrics
 
 
 @dynamic(cache=True, cache_version=CACHE_VERSION, requests=request_resources, limits=limit_resources)
-def get_latest_model(config: types.Config, batches: List[data.Batch]) -> JoblibSerializedFile:
+def get_latest_model(
+    config: types.Config,
+    batches: List[data.Batch]
+) -> (JoblibSerializedFile, List[List[types.Metrics]]):  # type: ignore
     model_file = init_model(
         genesis_date=config.model.genesis_date,
         model_config=config.model,
         instance_config=config.instance,
     )
+    metrics_per_batch = []
     for batch in batches:
-        model_file = update_model(
+        model_file, metrics = update_model(
             model_file=model_file,
             batch=batch,
             model_config=config.model,
             instance_config=config.instance,
+            metrics_config=config.metrics,
         )
-    return model_file
+        metrics_per_batch.append(metrics)
+    return model_file, metrics_per_batch
 
 
 @task(requests=request_resources, limits=limit_resources)
@@ -359,14 +367,14 @@ def get_forecast(
 def forecast_weather(
     location: str,
     model_genesis_date: datetime = datetime.now(),
-    model_prior_days_window: int = 3,
+    model_prior_days_window: int = 1,
     model_batch_size: int = 7,
     model_validation_size: int = 1,
     instance_lookback_window: int = 3,
     instance_n_year_lookback: int = 1,
     metrics_scorers: List[str] = ["neg_mean_absolute_error", "neg_mean_squared_error"],
     forecast_n_days: int = 3,
-) -> types.Forecast:
+) -> NamedTuple("WeatherForecast", [("forecast", types.Forecast), ("metrics", List[List[types.Metrics]])]):
     config = get_config(
         model_genesis_date=model_genesis_date,
         model_prior_days_window=model_prior_days_window,
@@ -381,14 +389,15 @@ def forecast_weather(
     logger.info(config)
     now = floor_date(datetime.now())
     batches, imputation_date = get_training_data(now=now, location=location, config=config)
-    model_file = get_latest_model(config=config, batches=batches)
-    return get_forecast(
+    model_file, metrics_per_batch = get_latest_model(config=config, batches=batches)
+    forecast = get_forecast(
         location=location,
         now=now,
         imputation_date=imputation_date,
         model_file=model_file,
         config=config,
     )
+    return forecast, metrics_per_batch
 
 
 ################
@@ -406,7 +415,7 @@ SLACK_NOTIFICATION = Slack(
     ],
 )
 DEFAULT_INPUTS = {
-    "model_genesis_date": datetime(2021, 6, 5),
+    "model_genesis_date": datetime(2021, 6, 8),
     "model_prior_days_window": 7,
     "instance_lookback_window": 7,
     "instance_n_year_lookback": 1,
@@ -418,7 +427,7 @@ atlanta_lp = LaunchPlan.get_or_create(
     name="atlanta_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Atlanta, GA USA"},
-    schedule=CronSchedule("0/15 * * * ? *"),
+    schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
     notifications=[SLACK_NOTIFICATION],
 )
 
@@ -427,7 +436,7 @@ seattle_lp = LaunchPlan.get_or_create(
     name="seattle_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Seattle, WA USA"},
-    schedule=CronSchedule("5/15 * * * ? *"),
+    schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
     notifications=[SLACK_NOTIFICATION],
 )
 
@@ -436,13 +445,13 @@ hyderabad_lp = LaunchPlan.get_or_create(
     name="hyderabad_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location": "Hyderabad, Telangana, IND"},
-    schedule=CronSchedule("10/15 * * * ? *"),
+    schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
     notifications=[SLACK_NOTIFICATION],
 )
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
-    forecast = forecast_weather(location="Atlanta, GA US", model_genesis_date=datetime(2021, 6, 7))
+    forecast = forecast_weather(location="Atlanta, GA US", model_genesis_date=datetime(2021, 6, 10))
     logger.info("forecast")
     logger.info(forecast)
