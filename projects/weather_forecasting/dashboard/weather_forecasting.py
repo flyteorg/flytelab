@@ -39,16 +39,18 @@ see the [flytelab weather forecasting project](https://github.com/flyteorg/flyte
 launch_plan_map = {
     "seattle_wa_usa": "seattle_weather_forecast",
     "atlanta_ga_usa": "atlanta_weather_forecast",
+    "hyderabad_ga_usa": "hyderabad_weather_forecast",
 }
 
 city_label_map = {
     "atlanta_ga_usa": "Atlanta, GA USA",
     "seattle_wa_usa": "Seattle, WA USA",
+    "hyderabad_ga_usa": "Hyderabad, Telangana India",
 }
 
 selected_city = st.selectbox(
     "Select a City",
-    options=["atlanta_ga_usa", "seattle_wa_usa"],
+    options=["atlanta_ga_usa", "seattle_wa_usa", "hyderabad_ga_usa"],
     format_func=lambda x: city_label_map[x]
 )
 

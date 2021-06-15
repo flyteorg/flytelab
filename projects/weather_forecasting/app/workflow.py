@@ -444,7 +444,7 @@ hyderabad_lp = LaunchPlan.get_or_create(
     workflow=forecast_weather,
     name="hyderabad_weather_forecast",
     default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location": "Hyderabad, Telangana, IND"},
+    fixed_inputs={"location": "Hyderabad, Telangana India"},
     schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
     notifications=[SLACK_NOTIFICATION],
 )
@@ -452,6 +452,6 @@ hyderabad_lp = LaunchPlan.get_or_create(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
-    forecast = forecast_weather(location="Atlanta, GA US", model_genesis_date=datetime(2021, 6, 10))
+    forecast = forecast_weather(location="Hyderabad, Telangana India", model_genesis_date=datetime(2021, 6, 10))
     logger.info("forecast")
     logger.info(forecast)
