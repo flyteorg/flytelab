@@ -334,7 +334,7 @@ def get_forecast(
     predictions: List[types.Prediction] = []
 
     # NOTE: this workflow assumes datetimes are timezone-unaware
-    n_imputations = (now - floor_date(imputation_date)).days
+    n_imputations = (now - floor_date(imputation_date)).days + 1
     for i, n_days in enumerate(range(int(config.forecast.n_days) + n_imputations + 1)):
         forecast_date = floor_date(imputation_date + timedelta(days=n_days))
         forecast_batch = [
@@ -415,10 +415,10 @@ SLACK_NOTIFICATION = Slack(
     ],
 )
 DEFAULT_INPUTS = {
-    "model_genesis_date": datetime(2021, 6, 8),
-    "model_prior_days_window": 7,
-    "instance_lookback_window": 7,
-    "instance_n_year_lookback": 1,
+    "model_genesis_date": datetime(2021, 6, 1),
+    "model_prior_days_window": 30,
+    "instance_lookback_window": 30,
+    "instance_n_year_lookback": 3,
     "forecast_n_days": 7,
 }
 
