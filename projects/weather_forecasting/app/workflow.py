@@ -23,7 +23,7 @@ logger = logging.getLogger(__file__)
 
 
 MAX_RETRIES = 10
-CACHE_VERSION = "1"
+CACHE_VERSION = "2"
 
 request_resources = Resources(cpu=CACHE_VERSION, mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
@@ -452,6 +452,13 @@ hyderabad_lp = LaunchPlan.get_or_create(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
-    forecast = forecast_weather(location="Hyderabad, Telangana India", model_genesis_date=datetime(2021, 6, 10))
+    forecast = forecast_weather(
+        location="Atlanta, GA USA",
+        model_genesis_date=datetime(2021, 6, 1),
+        model_prior_days_window=30,
+        instance_lookback_window=30,
+        instance_n_year_lookback=3,
+        forecast_n_days=7,
+    )
     logger.info("forecast")
     logger.info(forecast)
