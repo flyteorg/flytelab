@@ -25,7 +25,7 @@ logger = logging.getLogger(__file__)
 MAX_RETRIES = 10
 CACHE_VERSION = "2"
 
-request_resources = Resources(cpu=CACHE_VERSION, mem="500Mi", storage="500Mi")
+request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 TrainingData = NamedTuple("TrainingData", batches=List[data.Batch], imputation_date=datetime)
