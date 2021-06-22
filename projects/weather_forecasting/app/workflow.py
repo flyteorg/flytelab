@@ -412,6 +412,7 @@ SLACK_NOTIFICATION = Slack(
     ],
     recipients_email=[
         "flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com",
+        "niels@union.ai",
     ],
 )
 DEFAULT_INPUTS = {
