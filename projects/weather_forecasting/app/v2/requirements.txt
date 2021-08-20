@@ -1,0 +1,11 @@
+git+git://github.com/flyteorg/flytelab@main#subdirectory=projects/weather_forecasting&egg=flytelab-weather-forecasting
+flytekit
+flyteidl
+streamlit
+geopy
+joblib
+pandas
+pandera
+requests
+sklearn
+timezonefinder

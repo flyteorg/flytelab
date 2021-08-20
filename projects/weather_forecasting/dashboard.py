@@ -9,10 +9,10 @@ os.environ["FLYTE_INTERNAL_CONFIGURATION_PATH"] = os.path.join(
 
 
 from flytekit.clients.friendly import SynchronousFlyteClient
-from flytekit.control_plane.workflow_execution import FlyteWorkflowExecution
+from flytekit.remote.workflow_execution import FlyteWorkflowExecution
 from flytekit.models import filters
 from flytekit.models.admin.common import Sort
-from flytelab.weather_forecasting import types
+from flytelab.weather_forecasting.v1 import types
 from google.protobuf.json_format import MessageToJson
 
 

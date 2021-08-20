@@ -16,7 +16,7 @@ from flytekit import task, dynamic, workflow, CronSchedule, LaunchPlan, Resource
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
 
-from flytelab.weather_forecasting import cache, data, trainer, types
+from flytelab.weather_forecasting.v1 import cache, data, trainer, types
 
 
 logger = logging.getLogger(__file__)
@@ -455,10 +455,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s:: %(message)s")
     forecast = forecast_weather(
         location="Atlanta, GA USA",
-        model_genesis_date=datetime(2021, 6, 1),
-        model_prior_days_window=30,
-        instance_lookback_window=30,
-        instance_n_year_lookback=3,
+        model_genesis_date=datetime(2021, 6, 22),
+        model_prior_days_window=3,
+        instance_lookback_window=7,
+        instance_n_year_lookback=1,
         forecast_n_days=7,
     )
     logger.info("forecast")

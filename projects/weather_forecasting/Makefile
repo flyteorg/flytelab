@@ -84,7 +84,7 @@ endif
 		-f ./Dockerfile
 
 .PHONY: docker-push
-docker-push:
+docker-push: docker-build
 	@echo "Pushing: ${FLYTE_INTERNAL_IMAGE}"
 	docker push "${FLYTE_INTERNAL_IMAGE}"
 	docker push "${FLYTE_INTERNAL_LATEST}"

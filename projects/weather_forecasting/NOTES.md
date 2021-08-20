@@ -52,7 +52,7 @@ INSECURE=true \
 FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make register
 ```
 
@@ -69,7 +69,7 @@ FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
 ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/cookbook \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 
@@ -82,7 +82,7 @@ FLYTE_HOST=sandbox.uniondemo.run \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
 OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make register
 ```
 
@@ -94,7 +94,7 @@ FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
 OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
 ADDL_DISTRIBUTION_DIR=s3://flytelab/fast \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 

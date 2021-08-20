@@ -13,7 +13,7 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import SGDRegressor
 from sklearn.metrics import SCORERS
 
-from flytelab.weather_forecasting import data, cache, types
+from flytelab.weather_forecasting.v1 import data, cache, types
 
 
 def load_data(get_training_instance, location_query, target_date, config):
