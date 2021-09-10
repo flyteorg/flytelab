@@ -1,10 +1,9 @@
 import json
 import logging
 import os
-import time
 from io import StringIO
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import List, Optional
 
@@ -13,7 +12,7 @@ import pandas as pd
 import pandera as pa
 import requests
 from dataclasses_json import dataclass_json, config
-from flytekit import dynamic, task, workflow
+from flytekit import dynamic, task, workflow, Resources
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
 
@@ -28,6 +27,9 @@ MISSING_DATA_INDICATOR = 9999
 MAX_RETRIES = 10
 
 logger = logging.getLogger(__file__)
+
+request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
+limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 geolocator = Nominatim(user_agent=USER_AGENT)
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
@@ -52,23 +54,13 @@ class GlobalHourlyDataClean(pa.SchemaModel):
 @dataclass_json
 @dataclass
 class TrainingInstance:
-    target_datetime: datetime = field(
-        metadata=config(
-            encoder=lambda x: datetime.datetime.isoformat(x),
-            decoder=lambda x: datetime.datetime.fromisoformat(x),
-        )
-    )
-    features: List[float] = field(
-        metadata=config(
-            encoder=lambda x: json.dumps([float(i) for i in x]),
-            decoder=lambda x: json.loads(x),
-        )
-    )
-    target: Optional[float] = None
+    target_datetime: datetime
+    features: List[float]
+    target: float
 
     def __post_init__(self):
         if pd.isna(self.target):
-            self.target = None
+            self.target = float("nan")
 
 
 def _get_api_key():
@@ -116,8 +108,8 @@ def get_global_hourly_data_responses(
         metadata = call_noaa_api(
             dataset=DATASET_ID,
             bbox=",".join(bounding_box(location)),
-            startDate=start.isoformat(),
-            endDate=end.isoformat(),
+            startDate=start.replace(tzinfo=None).isoformat(),
+            endDate=end.replace(tzinfo=None).isoformat(),
             units="metric",
             format="json",
             limit=1000,
@@ -141,7 +133,7 @@ def parse_global_hourly_data(
     """
     if df is None or df.empty:
         return pd.DataFrame(columns=["air_temp", "air_temp_quality_code", "date"])
-    return (
+    out = (
         df["tmp"].str.split(",", expand=True)
         .rename(columns=lambda x: ["air_temp", "air_temp_quality_code"][x])
         .astype(int)
@@ -157,14 +149,21 @@ def parse_global_hourly_data(
         # page 10, "AIR-TEMPERATURE-OBSERVATION" of
         # https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
         .loc[lambda df: ~df.air_temp_quality_code.isin({3, 7})]
-        # only keep records within the time period of interest
-        .loc[lambda df: df.date.between(pd.Timestamp(start), pd.Timestamp(end))]
+    )
+    return (
         # get hourly mean air temperature across readings of different sensor locations
-        .groupby("date").agg({"air_temp": "mean"})
+        out.groupby("date").agg({"air_temp": "mean"})
+        # only keep records within the time period of interest
+        .loc[pd.to_datetime(start): pd.to_datetime(end)]
     )
 
 
-@task
+@task(
+    cache=True,
+    cache_version="1",
+    requests=request_resources,
+    limits=limit_resources,
+)
 def get_data_file(filepath: str) -> pd.DataFrame:
     if filepath.startswith("/"):
         filepath = filepath[1:]
@@ -173,32 +172,50 @@ def get_data_file(filepath: str) -> pd.DataFrame:
     raise RuntimeError(f"could not get data file {filepath} from {DATA_ACCESS_URL}")
 
 
-@task
+@task(
+    cache=True,
+    cache_version="1",
+    requests=request_resources,
+    limits=limit_resources,
+)
 def process_global_hourly_data(data: List[pd.DataFrame], start: datetime, end: datetime) -> TrainingInstance:
     if len(data) == 0:
         logger.debug(f"no data found")
-        return TrainingInstance(target_datetime=end, features=[], target=None)
+        return TrainingInstance(
+            target_datetime=end.replace(tzinfo=None),
+            features=[],
+            target=float("nan")
+        )
 
     hourly_data = (
         pd.concat(data)
         .rename(columns=lambda x: x.lower()).astype({"date": "datetime64[ns]"})
         .pipe(parse_global_hourly_data, start, end)
     )
-    target = hourly_data["air_temp"].loc[pd.Timestamp(end)]
+    target = hourly_data["air_temp"].loc[pd.to_datetime(end)]
     # make sure features are in descending order (most recent first)
     features = hourly_data.loc[
-        pd.Timestamp(start): pd.Timestamp(end) - pd.Timedelta(1, unit="H")
+        pd.to_datetime(start): pd.to_datetime(end) - pd.Timedelta(1, unit="H")
     ].sort_index(ascending=False)
-    return TrainingInstance(target_datetime=end, features=features["air_temp"].tolist(), target=target)
+    return TrainingInstance(
+        target_datetime=end.replace(tzinfo=None),
+        features=features["air_temp"].tolist(),
+        target=float(target)
+    )
 
 
-@dynamic
+@dynamic(
+    cache=True,
+    cache_version="1",
+    requests=request_resources,
+    limits=limit_resources,
+)
 def get_training_instance(
     location_query: str,
     target_datetime: datetime,
     lookback_window: int,  # one week by default
 ) -> TrainingInstance:
-    target_datetime = target_datetime.replace(minute=0, second=0, microsecond=0)
+    target_datetime = target_datetime.replace(minute=0, second=0, microsecond=0, tzinfo=None)
     start_datetime = target_datetime - timedelta(hours=lookback_window)
     logger.info(
         f"getting global hourly data for query: {location_query} between {start_datetime} and {target_datetime}"
@@ -232,12 +249,18 @@ def get_forecast():
 
 
 @workflow
-def forecast_weather(location_query: str, target_datetime: datetime, lookback_window: int) -> TrainingInstance:
-    return get_training_instance(
-        location_query="Atlanta, GA US",
-        target_datetime=datetime.now() - timedelta(days=7),
-        lookback_window=24 * 7,
+def forecast_weather(
+    location_query: str,
+    genesis_datetime: datetime,
+    target_datetime: datetime,
+    lookback_window: int,
+) -> TrainingInstance:
+    training_instance = get_training_instance(
+        location_query=location_query,
+        target_datetime=target_datetime,
+        lookback_window=lookback_window,
     )
+    return training_instance
 
 
 if __name__ == "__main__":
@@ -247,4 +270,4 @@ if __name__ == "__main__":
         target_datetime=datetime.now() - timedelta(days=7),
         lookback_window=24 * 7,
     )
-    import ipdb; ipdb.set_trace()
+    print(hourly_data)
