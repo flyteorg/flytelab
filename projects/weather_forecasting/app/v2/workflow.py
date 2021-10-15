@@ -1,7 +1,6 @@
 import math
 import logging
 import os
-from re import I
 import time
 from io import StringIO
 from dataclasses import dataclass
@@ -17,6 +16,7 @@ import requests
 from dataclasses_json import dataclass_json
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
+from pandera.typing import DataFrame, Series, Index
 from sklearn.linear_model import SGDRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.multioutput import MultiOutputRegressor
@@ -24,6 +24,8 @@ from sklearn.multioutput import MultiOutputRegressor
 from flytekit import dynamic, task, workflow, CronSchedule, LaunchPlan, Resources, Slack
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
+
+import flytekitplugins.pandera
 
 
 USER_AGENT = "flyte-weather-forecasting"
@@ -46,16 +48,17 @@ geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 
 
 class GlobalHourlyDataRaw(pa.SchemaModel):
-    date: pa.typing.Series[pa.typing.DateTime]
-    tmp: pa.typing.Series[str]
+    date: Series[pa.typing.DateTime]
+    tmp: Series[str]
 
     class Config:
         coerce = True
 
 
 class GlobalHourlyDataClean(pa.SchemaModel):
-    date: pa.typing.Series[pa.typing.DateTime]
-    air_temp: pa.typing.Series[float]
+    date: Index[pa.typing.DateTime]
+    air_temp: Series[float]
+    dew_temp: Series[float]
 
     class Config:
         coerce = True
@@ -229,7 +232,7 @@ def parse_temperature(temp: pd.Series, suffix: str) -> pd.Series:
 
 
 @pa.check_types
-def parse_global_hourly_data(df: Optional[pa.typing.DataFrame[GlobalHourlyDataRaw]]):
+def parse_global_hourly_data(df: DataFrame[GlobalHourlyDataRaw]) -> DataFrame[GlobalHourlyDataClean]:
     """Process raw global hourly data.
 
     For reference, see data documents:
@@ -238,7 +241,7 @@ def parse_global_hourly_data(df: Optional[pa.typing.DataFrame[GlobalHourlyDataRa
     """
     if df is None or df.empty:
         return pd.DataFrame(columns=["air_temp", "air_temp_quality_code", "date"])
-    out = (
+    return (
         # "tmp" is a string column and needs to be further parsed
         parse_temperature(df["tmp"], suffix="air_")
         .join(parse_temperature(df["dew"], suffix="dew_"))
@@ -251,10 +254,8 @@ def parse_global_hourly_data(df: Optional[pa.typing.DataFrame[GlobalHourlyDataRa
         # page 10, "AIR-TEMPERATURE-OBSERVATION" of
         # https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
         .loc[lambda df: ~df.air_temp_quality_code.isin({3, 7})]
-    )
-    return (
         # get hourly mean air temperature across readings of different sensor locations
-        out.groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
+        .groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
     )
 
 
@@ -310,9 +311,7 @@ def get_training_data(
     start: datetime,
     end: datetime,
 ) -> pd.DataFrame:
-    logger.info(
-        f"getting global hourly data for query: {location_query} between {start} and {end}"
-    )
+    logger.info(f"getting global hourly data for query: {location_query} between {start} and {end}")
     responses = get_global_hourly_data_responses(location_query=location_query, start=start, end=end)
     return process_raw_training_data(data=get_raw_data(responses=responses))
 
@@ -321,47 +320,44 @@ def get_training_data(
     requests=request_resources,
     limits=limit_resources,
 )
-def prepare_training_instance(training_data: pd.DataFrame, start: datetime, end: datetime) -> TrainingInstance:
+def prepare_training_instance(
+    training_data: DataFrame[GlobalHourlyDataClean], start: datetime, end: datetime
+) -> TrainingInstance:
+    # make sure dates are timezone-unaware
+    start = pd.to_datetime(start.replace(tzinfo=None))
+    end = pd.to_datetime(end.replace(tzinfo=None))
+
+    air_temp_features = []
+    dew_temp_features = []
+    time_based_feature = None
+    target = Target(float("nan"), float("nan"))
+
     # make sure features are in descending order (most recent first)
-    start = start.replace(tzinfo=None)
-    end = end.replace(tzinfo=None)
+    features = training_data.loc[start: end - pd.Timedelta(1, unit="H")].sort_index(ascending=False)
 
-    features = training_data.loc[
-        pd.to_datetime(start): pd.to_datetime(end) - pd.Timedelta(1, unit="H")
-    ].sort_index(ascending=False)
-
-    if training_data.empty or features.empty:
-        return TrainingInstance(
-            target_datetime=end.replace(tzinfo=None),
-            features=Features(
-                air_temp_features=[],
-                dew_temp_features=[],
-                time_based_feature=None,
-            ),
-            target=Target(float("nan"), float("nan"))
-        )
-
+    if not (training_data.empty or features.empty):
+        air_temp_features=features["air_temp"].tolist()
+        dew_temp_features=features["dew_temp"].tolist()
+        time_based_feature=features.index[0].to_pydatetime()
     if pd.to_datetime(end) in training_data.index:
         target = Target(
-            air_temp=training_data["air_temp"].loc[pd.to_datetime(end)],
-            dew_temp=training_data["dew_temp"].loc[pd.to_datetime(end)],
+            air_temp=training_data["air_temp"].loc[end],
+            dew_temp=training_data["dew_temp"].loc[end],
         )
-    else:
-        target = Target(float("nan"), float("nan"))
     return TrainingInstance(
-        target_datetime=end.replace(tzinfo=None),
+        target_datetime=end,
         features=Features(
-            air_temp_features=features["air_temp"].tolist(),
-            dew_temp_features=features["dew_temp"].tolist(),
-            time_based_feature=features.index[0].to_pydatetime(),
+            air_temp_features=air_temp_features,
+            dew_temp_features=dew_temp_features,
+            time_based_feature=time_based_feature,
         ),
-        target=target
+        target=target,
     )
 
 
 def round_datetime_to_year(dt: datetime, ceil: bool = True) -> datetime:
     """Round date-times to the year."""
-    return datetime(dt.year + 1 if ceil else dt.year + 1, 1, 1, 0, tzinfo=None)
+    return datetime(dt.year + 1 if ceil else dt.year, 1, 1, 0, tzinfo=None)
 
 
 @dynamic(
