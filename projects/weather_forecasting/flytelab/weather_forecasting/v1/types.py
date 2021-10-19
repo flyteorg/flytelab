@@ -67,14 +67,14 @@ class Config:
     forecast: ForecastConfig
 
 
-Metrics = TypedDict(
-    "Metrics",
-    name=str,
-    train=float,
-    train_size=int,
-    validation=Optional[float],
-    validation_size=int,
-)
+@dataclass_json
+@dataclass
+class Metrics:
+    name: str
+    train: float
+    train_size: int
+    validation: Optional[float]
+    validation_size: int
 
 
 @dataclass_json

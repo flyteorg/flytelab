@@ -21,9 +21,10 @@ from sklearn.linear_model import SGDRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.multioutput import MultiOutputRegressor
 
-from flytekit import dynamic, task, workflow, CronSchedule, LaunchPlan, Resources, Slack
+from flytekit import conditional, dynamic, task, workflow, kwtypes, CronSchedule, LaunchPlan, Resources, Slack
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
+from flytekit.types.schema import FlyteSchema
 
 import flytekitplugins.pandera
 
@@ -45,6 +46,9 @@ limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 geolocator = Nominatim(user_agent=USER_AGENT)
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
+
+
+TrainingSchema = FlyteSchema[kwtypes(date=datetime, air_temp=float, dew_temp=float)]
 
 
 class GlobalHourlyDataRaw(pa.SchemaModel):
@@ -310,19 +314,21 @@ def get_training_data(
     location_query: str,
     start: datetime,
     end: datetime,
-) -> pd.DataFrame:
+) -> TrainingSchema:
     logger.info(f"getting global hourly data for query: {location_query} between {start} and {end}")
     responses = get_global_hourly_data_responses(location_query=location_query, start=start, end=end)
     return process_raw_training_data(data=get_raw_data(responses=responses))
 
 
 @task(
+    cache=True,
+    cache_version=CACHE_VERSION,
     requests=request_resources,
     limits=limit_resources,
 )
-def prepare_training_instance(
-    training_data: DataFrame[GlobalHourlyDataClean], start: datetime, end: datetime
-) -> TrainingInstance:
+def get_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
+    training_data = training_data.open().all()
+
     # make sure dates are timezone-unaware
     start = pd.to_datetime(start.replace(tzinfo=None))
     end = pd.to_datetime(end.replace(tzinfo=None))
@@ -353,26 +359,6 @@ def prepare_training_instance(
         ),
         target=target,
     )
-
-
-def round_datetime_to_year(dt: datetime, ceil: bool = True) -> datetime:
-    """Round date-times to the year."""
-    return datetime(dt.year + 1 if ceil else dt.year, 1, 1, 0, tzinfo=None)
-
-
-@dynamic(
-    cache=True,
-    cache_version=CACHE_VERSION,
-    requests=request_resources,
-    limits=limit_resources,
-)
-def get_training_instance(location_query: str, start: datetime, end: datetime) -> TrainingInstance:
-    training_data = get_training_data(
-        location_query=location_query,
-        start=round_datetime_to_year(dt=start, ceil=False),
-        end=round_datetime_to_year(dt=end, ceil=True),
-    )
-    return prepare_training_instance(training_data=training_data, start=start, end=end)
 
 
 @task(cache=True, cache_version=CACHE_VERSION)
@@ -472,7 +458,12 @@ def encode_targets(targets: Target):
     return [[targets.dew_temp, targets.air_temp]]
 
 
-@task(cache=True, cache_version=CACHE_VERSION)
+@task(
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources,
+)
 def update_model(
     model: JoblibSerializedFile,
     training_instance: TrainingInstance,
@@ -507,14 +498,13 @@ def update_model(
         joblib.dump(model, f, compress=True)
     return JoblibSerializedFile(path=model_fp), Scores(train_exp_mae, valid_exp_mae)
 
-@task
-def stop_training(training_instance: TrainingInstance) -> bool:
-    return math.isnan(training_instance.target.air_temp)
 
-
-@dynamic(cache=True, cache_version=CACHE_VERSION)
+@dynamic(
+    requests=request_resources,
+    limits=limit_resources,
+)
 def get_latest_model(
-    location_query: str,
+    training_data: TrainingSchema,
     target_datetime: datetime,
     genesis_datetime: datetime,
     lookback_window: int,
@@ -526,22 +516,21 @@ def get_latest_model(
     the model doesn't have to be re-trained every time it's called; it hits the cache
     until it reaches the target date, which presumably hasn't been called yet.
     """
+    training_data = training_data.open().all()
     target_datetime = target_datetime.replace(tzinfo=None)
     genesis_datetime = genesis_datetime.replace(tzinfo=None)
 
     model = init_model(genesis_datetime=genesis_datetime)
     scores = Scores()
 
-    diff_in_hours = (target_datetime - genesis_datetime).days * 24
+    diff_in_hours = (training_data.index.max().to_pydatetime() - genesis_datetime).days * 24
     for i in range(1, diff_in_hours + 1):
         current_datetime = genesis_datetime + timedelta(hours=i)
         training_instance = get_training_instance(
-            location_query=location_query,
+            training_data=training_data,
             start=current_datetime - timedelta(hours=lookback_window),
             end=current_datetime,
         )
-        if stop_training(training_instance=training_instance):
-            return model, scores, training_instance
         model, scores = update_model(model=model, training_instance=training_instance, scores=scores)
     return model, scores, training_instance
 
@@ -612,8 +601,13 @@ def forecast_weather(
 ) -> WeatherForecast:
     target_datetime = normalize_datetime(dt=target_datetime)
     genesis_datetime = normalize_datetime(dt=genesis_datetime)
-    model, scores, latest_training_instance = get_latest_model(
+    training_data = get_training_data(
         location_query=location_query,
+        start=genesis_datetime,
+        end=target_datetime,
+    )
+    model, scores, latest_training_instance = get_latest_model(
+        training_data=training_data,
         target_datetime=target_datetime,
         genesis_datetime=genesis_datetime,
         lookback_window=lookback_window,
@@ -680,7 +674,7 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
     forecast, scores = forecast_weather(
         location_query="Atlanta, GA US",
-        target_datetime=datetime.now() + timedelta(days=7),
+        target_datetime=datetime.now() + timedelta(days=1),
         genesis_datetime=datetime.now() - timedelta(days=7 * 1),
         lookback_window=24 * 1,
         forecast_window=24 * 1,
