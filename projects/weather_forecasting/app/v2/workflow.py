@@ -40,7 +40,7 @@ DATA_ACCESS_URL = "https://www.ncei.noaa.gov"
 DATASET_ID = "global-hourly"
 MISSING_DATA_INDICATOR = 9999
 MAX_RETRIES = 10
-CACHE_VERSION = "1.8"
+CACHE_VERSION = "1.9"
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -666,6 +666,14 @@ def forecast_weather(
     genesis_datetime = normalize_datetime(dt=genesis_datetime)
     latest_available_datetime = latest_available_training_data(
         location_query=location_query, start=genesis_datetime, end=target_datetime,
+    )
+    # call this once to cache the output
+    get_weather_data(
+        location_query=location_query,
+        start=round_datetime(dt=genesis_datetime, ceil=False),
+        end=round_datetime(dt=target_datetime, ceil=True),
+        # Make sure the processed weather data cache is invalidated every hour.
+        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
     )
     training_instances = get_training_instances(
         location_query=location_query,
