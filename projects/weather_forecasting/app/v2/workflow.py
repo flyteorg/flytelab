@@ -422,7 +422,9 @@ def get_training_instances(
     genesis_datetime: datetime,
     latest_available_datetime: datetime,
     lookback_window: int,
+    weather_data_cached: bool,
 ) -> List[TrainingInstance]:
+    assert weather_data_cached
     training_instances = []
     diff_in_hours = (min(latest_available_datetime, target_datetime) - genesis_datetime).days * 24
     for i in range(1, diff_in_hours + 1):
@@ -654,6 +656,25 @@ def normalize_datetime(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
 
 
+@dynamic(
+    requests=request_resources,
+    limits=limit_resources,
+)
+def weather_data_cached(
+    location_query: str,
+    genesis_datetime: datetime,
+    target_datetime: datetime,
+) -> bool:
+    get_weather_data(
+        location_query=location_query,
+        start=round_datetime(dt=genesis_datetime, ceil=False),
+        end=round_datetime(dt=target_datetime, ceil=True),
+        # Make sure the processed weather data cache is invalidated every hour.
+        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+    )
+    return True
+
+
 @workflow
 def forecast_weather(
     location_query: str,
@@ -668,19 +689,17 @@ def forecast_weather(
         location_query=location_query, start=genesis_datetime, end=target_datetime,
     )
     # call this once to cache the output
-    get_weather_data(
-        location_query=location_query,
-        start=round_datetime(dt=genesis_datetime, ceil=False),
-        end=round_datetime(dt=target_datetime, ceil=True),
-        # Make sure the processed weather data cache is invalidated every hour.
-        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
-    )
     training_instances = get_training_instances(
         location_query=location_query,
         target_datetime=target_datetime,
         genesis_datetime=genesis_datetime,
         latest_available_datetime=latest_available_datetime,
         lookback_window=lookback_window,
+        weather_data_cached=weather_data_cached(
+            location_query=location_query,
+            genesis_datetime=genesis_datetime,
+            target_datetime=target_datetime,
+        )
     )
     model, scores, latest_training_instance = get_latest_model(
         training_instances=training_instances,
@@ -747,7 +766,7 @@ hyderabad_lp = LaunchPlan.get_or_create(
 if __name__ == "__main__":
     forecast, scores = forecast_weather(
         location_query="Atlanta, GA US",
-        target_datetime=datetime.now() - timedelta(days=7),
+        target_datetime=datetime.now() - timedelta(days=6),
         genesis_datetime=datetime.now() - timedelta(days=7 * 4),
         lookback_window=24 * 3,
         forecast_window=24 * 3,
