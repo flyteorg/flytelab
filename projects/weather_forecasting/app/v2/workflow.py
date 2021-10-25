@@ -404,6 +404,28 @@ def round_datetime(dt: datetime, ceil: bool) -> datetime:
     return datetime(dt.year + 1 if ceil else dt.year, 1, 1, 0, tzinfo=None)
 
 
+@task
+def instances_from_pretraining_data(
+    training_data: TrainingSchema,
+    pretraining_start_date: datetime,
+    genesis_datetime: datetime,
+    lookback_window: int,
+) -> List[TrainingInstance]:
+    training_data: pd.Dataframe = training_data.open().all()
+    training_instances = []
+    diff_in_hours = (genesis_datetime - pretraining_start_date).days * 24
+    for i in range(1, diff_in_hours + 1):
+        current_datetime = pretraining_start_date + timedelta(hours=i)
+        training_instances.append(
+            _prepare_training_instance(
+                training_data=training_data,
+                start=current_datetime - timedelta(hours=lookback_window),
+                end=current_datetime,
+            )
+        )
+    return training_instances
+
+
 @dynamic(
     requests=request_resources,
     limits=limit_resources,
@@ -424,17 +446,12 @@ def get_pretraining_instances(
         # Make sure the processed weather data cache is invalidated every hour.
         fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
     )
-
-    training_instances = []
-    diff_in_hours = (genesis_datetime - pretraining_start_date).days * 24
-    for i in range(1, diff_in_hours + 1):
-        current_datetime = pretraining_start_date + timedelta(hours=i)
-        training_instances.append(
-            prepare_training_instance(
-                training_data, start=current_datetime - timedelta(hours=lookback_window), end=current_datetime
-            )
-        )
-    return training_instances
+    return instances_from_pretraining_data(
+        training_data=training_data,
+        pretraining_start_date=pretraining_start_date,
+        genesis_datetime=genesis_datetime,
+        lookback_window=lookback_window,
+    )
 
 
 def serialize_model(model: BaseEstimator) -> str:
@@ -519,7 +536,7 @@ def encode_targets(targets: Target):
     return [[targets.dew_temp, targets.air_temp]]
 
 
-def _update_model(model, training_instance, scores):
+def _update_model(model, scores, training_instance):
     features = encode_features(training_instance.features)
 
     try:
@@ -551,11 +568,11 @@ def _update_model(model, training_instance, scores):
 )
 def update_model(
     model: str,
-    training_instance: TrainingInstance,
     scores: Scores,
+    training_instance: TrainingInstance,
 ) -> ModelUpdate:
-    model, scores = _update_model(deserialize_model(model), training_instance, scores)
-    return serialize_model(model), scores, training_instance
+    model, scores = _update_model(deserialize_model(model), scores, training_instance)
+    return ModelUpdate(serialize_model(model), scores, training_instance)
 
 
 @task
@@ -617,8 +634,8 @@ def normalize_datetime(dt: datetime) -> datetime:
 def pretrain_model(model: str, scores: Scores, training_instances: List[TrainingInstance]) -> ModelUpdate:
     model = deserialize_model(model)
     for training_instance in training_instances:
-        model, scores = _update_model(model, training_instance, scores)
-    return serialize_model(model), scores, training_instance
+        model, scores = _update_model(model, scores, training_instance)
+    return ModelUpdate(serialize_model(model), scores, training_instance)
 
 
 @dynamic(cache=True, cache_version=CACHE_VERSION)
@@ -709,8 +726,8 @@ def get_updated_model_recursively(
     )
     return update_model(
         model=model,
-        training_instance=training_instance,
         scores=scores,
+        training_instance=training_instance,
     )
 
 @workflow
@@ -828,7 +845,7 @@ SLACK_NOTIFICATION = Slack(
 if __name__ == "__main__":
     forecast, scores = forecast_weather(
         location_query="Atlanta, GA US",
-        target_datetime=datetime.now() - timedelta(days=7),
+        target_datetime=datetime.now() - timedelta(days=6),
         genesis_datetime=datetime.now() - timedelta(days=7),
         n_days_pretraining=7,
         lookback_window=24 * 3,
