@@ -797,32 +797,32 @@ SLACK_NOTIFICATION = Slack(
 
 # TODO: make kickoff launch plans for the initialization launch.
 
-atlanta_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="atlanta_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Atlanta, GA USA"},
-    schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
-    notifications=[SLACK_NOTIFICATION],
-)
+# atlanta_lp = LaunchPlan.get_or_create(
+#     workflow=forecast_weather,
+#     name="atlanta_weather_forecast_v2",
+#     default_inputs=DEFAULT_INPUTS,
+#     fixed_inputs={"location_query": "Atlanta, GA USA"},
+#     schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
+#     notifications=[SLACK_NOTIFICATION],
+# )
 
-seattle_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="seattle_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Seattle, WA USA"},
-    schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
-    notifications=[SLACK_NOTIFICATION],
-)
+# seattle_lp = LaunchPlan.get_or_create(
+#     workflow=forecast_weather,
+#     name="seattle_weather_forecast_v2",
+#     default_inputs=DEFAULT_INPUTS,
+#     fixed_inputs={"location_query": "Seattle, WA USA"},
+#     schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
+#     notifications=[SLACK_NOTIFICATION],
+# )
 
-hyderabad_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="hyderabad_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Hyderabad, Telangana India"},
-    schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
-    notifications=[SLACK_NOTIFICATION],
-)
+# hyderabad_lp = LaunchPlan.get_or_create(
+#     workflow=forecast_weather,
+#     name="hyderabad_weather_forecast_v2",
+#     default_inputs=DEFAULT_INPUTS,
+#     fixed_inputs={"location_query": "Hyderabad, Telangana India"},
+#     schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
+#     notifications=[SLACK_NOTIFICATION],
+# )
 
 
 
