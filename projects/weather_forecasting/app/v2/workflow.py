@@ -780,6 +780,7 @@ def forecast_weather(
 DEFAULT_INPUTS = {
     "target_datetime": datetime(2021, 9, 1),
     "genesis_datetime": datetime(2021, 7, 1),
+    "n_days_pretraining": 7,
     "lookback_window": 24 * 3,  # 3-day lookback
     "forecast_window": 24 * 3,  # 3-day forecast
 }
