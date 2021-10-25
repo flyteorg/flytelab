@@ -423,12 +423,10 @@ def get_pretraining_instances(
         end=round_datetime(dt=genesis_datetime, ceil=True),
         # Make sure the processed weather data cache is invalidated every hour.
         fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
-    ).open().all()
-
-    latest_available_datetime = training_data.index.max().to_pydatetime()
+    )
 
     training_instances = []
-    diff_in_hours = (min(latest_available_datetime, genesis_datetime) - pretraining_start_date).days * 24
+    diff_in_hours = (genesis_datetime - pretraining_start_date).days * 24
     for i in range(1, diff_in_hours + 1):
         current_datetime = pretraining_start_date + timedelta(hours=i)
         training_instances.append(
