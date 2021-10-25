@@ -452,28 +452,6 @@ def deserialize_model(serialized_model: str) -> BaseEstimator:
     return joblib.load(BytesIO(base64.b64decode(serialized_model.encode())))
 
 
-@task(cache=True, cache_version=CACHE_VERSION)
-def init_model(genesis_datetime: datetime) -> str:
-    """Initialize the model."""
-    base_model = SGDRegressor(
-        penalty="l2",
-        alpha=0.001,
-        random_state=int(genesis_datetime.timestamp()),
-        learning_rate="constant",
-        eta0=0.1,
-        warm_start=True,
-        average=True,
-    )
-    model = MultiOutputRegressor(estimator=base_model)
-    return serialize_model(model)
-
-
-@task
-def get_previous_datetime(current_datetime: datetime) -> datetime:
-    """Update the model hourly."""
-    return current_datetime - timedelta(hours=1)
-
-
 def onehot_encode(x: int, k_values: int):
     return [int(x == i) for i in range(k_values)]
 
@@ -646,7 +624,7 @@ def pretrain_model(model: str, scores: Scores, training_instances: List[Training
 
 
 @dynamic(cache=True, cache_version=CACHE_VERSION)
-def _init_model(
+def init_model(
     bounding_box: BoundingBox,
     genesis_datetime: datetime,
     n_days_pretraining: int,
@@ -682,7 +660,7 @@ def _init_model(
     requests=request_resources,
     limits=limit_resources,
 )
-def _get_training_instance(bounding_box: BoundingBox, start: datetime, end: datetime) -> TrainingInstance:
+def get_training_instance(bounding_box: BoundingBox, start: datetime, end: datetime) -> TrainingInstance:
     """Gets a single training instance.
     
     Before getting the raw weather data, round the start and end date so that the result can be cached.
@@ -712,21 +690,21 @@ def previous_timestep(dt: datetime) -> datetime:
     requests=request_resources,
     limits=limit_resources,
 )
-def _get_updated_model_recursively(
+def get_updated_model_recursively(
     bounding_box: BoundingBox,
     target_datetime: datetime,
     genesis_datetime: datetime,
     n_days_pretraining: int,
     lookback_window: int,
 )  -> ModelUpdate:
-    model, scores, _ = _get_latest_model(
+    model, scores, _ = get_latest_model(
         bounding_box=bounding_box,
         target_datetime=previous_timestep(dt=target_datetime),
         genesis_datetime=genesis_datetime,
         n_days_pretraining=n_days_pretraining,
         lookback_window=lookback_window,
     )
-    training_instance = _get_training_instance(
+    training_instance = get_training_instance(
         bounding_box=bounding_box,
         start=target_datetime - timedelta(hours=lookback_window),
         end=target_datetime,
@@ -738,7 +716,7 @@ def _get_updated_model_recursively(
     )
 
 @workflow
-def _get_latest_model(
+def get_latest_model(
     bounding_box: BoundingBox,
     target_datetime: datetime,
     genesis_datetime: datetime,
@@ -749,7 +727,7 @@ def _get_latest_model(
         conditional("init_model")
         .if_(genesis_datetime == target_datetime)
         .then(
-            _init_model(
+            init_model(
                 bounding_box=bounding_box,
                 genesis_datetime=genesis_datetime,
                 n_days_pretraining=n_days_pretraining,
@@ -758,7 +736,7 @@ def _get_latest_model(
         )
         .else_()
         .then(
-            _get_updated_model_recursively(
+            get_updated_model_recursively(
                 bounding_box=bounding_box,
                 target_datetime=target_datetime,
                 genesis_datetime=genesis_datetime,
@@ -781,7 +759,7 @@ def forecast_weather(
     target_datetime = normalize_datetime(dt=target_datetime)
     genesis_datetime = normalize_datetime(dt=genesis_datetime)
     bounding_box = get_bounding_box(location_query=location_query)
-    model, scores, latest_training_instance = _get_latest_model(
+    model, scores, latest_training_instance = get_latest_model(
         bounding_box=get_bounding_box(location_query=location_query),
         target_datetime=get_target_datetime(
             bounding_box=bounding_box, start=genesis_datetime, end=target_datetime,
