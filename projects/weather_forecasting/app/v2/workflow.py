@@ -430,7 +430,7 @@ def get_pretraining_instances(
     for i in range(1, diff_in_hours + 1):
         current_datetime = pretraining_start_date + timedelta(hours=i)
         training_instances.append(
-            _prepare_training_instance(
+            prepare_training_instance(
                 training_data, start=current_datetime - timedelta(hours=lookback_window), end=current_datetime
             )
         )
