@@ -423,7 +423,7 @@ DEFAULT_INPUTS = {
     "forecast_n_days": 7,
 }
 
-atlanta_lp = LaunchPlan.get_or_create(
+# atlanta_lp = LaunchPlan.get_or_create(
 #     workflow=forecast_weather,
 #     name="atlanta_weather_forecast",
 #     default_inputs=DEFAULT_INPUTS,

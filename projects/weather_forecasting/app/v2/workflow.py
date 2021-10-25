@@ -825,7 +825,6 @@ SLACK_NOTIFICATION = Slack(
 # )
 
 
-
 if __name__ == "__main__":
     forecast, scores = forecast_weather(
         location_query="Atlanta, GA US",
