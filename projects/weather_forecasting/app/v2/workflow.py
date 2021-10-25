@@ -32,7 +32,7 @@ from flytekit.types.schema import FlyteSchema
 import flytekitplugins.pandera
 
 
-USER_AGENT = "flyte-weather-forecasting"
+USER_AGENT = "flyte-weather-forecasting-agent"
 API_BASE_URL = "https://www.ncei.noaa.gov/access/services/search/v1"
 DATASET_ENDPOINT = f"{API_BASE_URL}/datasets"
 DATA_ENDPOINT = f"{API_BASE_URL}/data"
@@ -136,11 +136,17 @@ class Forecast:
     predictions: List[Prediction]
 
 
+@dataclass_json
+@dataclass
+class BoundingBox:
+    north: str
+    west: str
+    south: str
+    east: str
+
+
 ApiResult = NamedTuple("ApiResult", results=List[dict], count=int)
-ModelUpdate = NamedTuple("ModelUpdate", model_file=str, scores=Scores)
-LatestModelBundle = NamedTuple(
-    "ModelUpdate", model_file=str, scores=Scores, training_instance=TrainingInstance
-)
+ModelUpdate = NamedTuple("ModelUpdate", model_file=str, scores=Scores, training_instance=TrainingInstance)
 WeatherForecast = NamedTuple("WeatherForecast", forecast=Forecast, scores=Scores)
 
 
@@ -163,7 +169,7 @@ def _get_api_key():
 
 
 def call_noaa_api(
-    location_query: str,
+    bounding_box: BoundingBox,
     start: datetime,
     end: datetime,
     responses: List[List[dict]],
@@ -172,10 +178,9 @@ def call_noaa_api(
 
     See https://www.ncdc.noaa.gov/cdo-web/webservices/v2 for request limits.
     """
-    location = geocode(location_query)
     params = dict(
         dataset=DATASET_ID,
-        bbox=",".join(bounding_box(location)),
+        bbox=",".join(bounding_box.to_dict().values()),
         startDate=start.replace(tzinfo=None).isoformat(),
         endDate=end.replace(tzinfo=None).isoformat(),
         units="metric",
@@ -194,29 +199,32 @@ def call_noaa_api(
     return ApiResult(results=metadata["results"], count=metadata["count"])
 
 
-def bounding_box(location: geopy.Location) -> List[str]:
+@task(cache=True, cache_version=CACHE_VERSION)
+def get_bounding_box(location_query: str) -> BoundingBox:
     """
-    Format bounding box
+    Get geolocation and create bounding box
 
     - from geocoder format: https://nominatim.org/release-docs/develop/api/Output/#boundingbox
     - to NOAA API format: https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation
     """
-    south, north, west, east = range(4)
-    return [location.raw["boundingbox"][i] for i in [north, west, south, east]]
+    # location = geocode(location_query)
+    # south, north, west, east = range(4)
+    # return BoundingBox(*[location.raw["boundingbox"][i] for i in [north, west, south, east]])
+    return BoundingBox("33.873", "-84.516", "33.623", "-84.266")
 
 
 def get_global_hourly_data_responses(
-    location_query: str, start: datetime, end: datetime
+    bounding_box: BoundingBox, start: datetime, end: datetime
 ) -> List[dict]:
     """Get global hourly data at specified location between two dates."""
     start = start.replace(tzinfo=None)
     end = end.replace(tzinfo=None)
-    logger.debug(f"getting global hourly data for query: {location_query} between {start} and {end}")
+    logger.debug(f"getting global hourly data for bounding box: {bounding_box} between {start} and {end}")
     responses = []
     count = -1
     while count < len([x for results in responses for x in results]):
         results, count = call_noaa_api(
-            location_query=location_query,
+            bounding_box=bounding_box,
             start=start,
             end=end,
             responses=responses,
@@ -230,7 +238,7 @@ def parse_temperature(temp: pd.Series, suffix: str) -> pd.Series:
     return (
         temp.str.split(",", expand=True)
         .rename(columns={0: temp_col, 1: quality_code_col})
-        .astype(int)
+        .astype({temp_col: int})
         .query(f"{temp_col} != {MISSING_DATA_INDICATOR}")
         .assign(**{
             # air temperature is in degress Celsius, with scaling factor of 10
@@ -261,7 +269,7 @@ def parse_global_hourly_data(df: DataFrame[GlobalHourlyDataRaw]) -> DataFrame[Gl
         # remove erroneous data, for details see:
         # page 10, "AIR-TEMPERATURE-OBSERVATION" of
         # https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
-        .loc[lambda df: ~df.air_temp_quality_code.isin({3, 7})]
+        .loc[lambda df: ~df.air_temp_quality_code.isin({"3", "7"})]
         # get hourly mean air temperature across readings of different sensor locations
         .groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
     )
@@ -315,13 +323,15 @@ def process_raw_training_data(data: List[pd.DataFrame]) -> pd.DataFrame:
     limits=limit_resources,
 )
 def get_weather_data(
-    location_query: str,
+    bounding_box: BoundingBox,
     start: datetime,
     end: datetime,
     fetch_date: datetime,
 ) -> TrainingSchema:
-    logger.info(f"getting global hourly data for query: {location_query} between {start} and {end}")
-    responses = get_global_hourly_data_responses(location_query=location_query, start=start, end=end)
+    logger.info(
+        f"getting global hourly data for query: {bounding_box} between {start} and {end}, fetch date: {fetch_date}"
+    )
+    responses = get_global_hourly_data_responses(bounding_box=bounding_box, start=start, end=end)
     data = process_raw_training_data(data=get_raw_data(responses=responses))
     training_data = TrainingSchema()
     training_data.open().write(data)
@@ -334,20 +344,20 @@ def get_weather_data(
     requests=request_resources,
     limits=limit_resources,
 )
-def latest_available_training_data(
-    location_query: str,
+def get_target_datetime(
+    bounding_box: BoundingBox,
     start: datetime,
     end: datetime,
 ) -> datetime:
     """Get the date of the latest available training data."""
-    [response, *_], _ = call_noaa_api(location_query=location_query, start=start, end=end, responses=[])
-    return pd.to_datetime(response["endDate"]).ceil("H").to_pydatetime()
+    end = end.replace(tzinfo=None)
+    [response, *_], _ = call_noaa_api(bounding_box=bounding_box, start=start, end=end, responses=[])
+    latest_available = pd.to_datetime(response["endDate"]).floor("H").to_pydatetime()
+    return min(end, latest_available)
 
 
-@task
-def prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
+def _prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
     logging.info(f"get training instance: {start} - {end}")
-    training_data = training_data.open().all()
 
     # make sure dates are timezone-unaware
     start = pd.to_datetime(start.replace(tzinfo=None))
@@ -370,6 +380,8 @@ def prepare_training_instance(training_data: TrainingSchema, start: datetime, en
             air_temp=training_data["air_temp"].loc[end],
             dew_temp=training_data["dew_temp"].loc[end],
         )
+    if math.isnan(target.air_temp):
+        import ipdb; ipdb.set_trace()
     return TrainingInstance(
         target_datetime=end,
         features=Features(
@@ -382,59 +394,48 @@ def prepare_training_instance(training_data: TrainingSchema, start: datetime, en
 
 
 @task
+def prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
+    return _prepare_training_instance(training_data.open().all(), start, end)
+
+
+@task
 def round_datetime(dt: datetime, ceil: bool) -> datetime:
     """Round date-times to the nearest hour."""
     return datetime(dt.year + 1 if ceil else dt.year, 1, 1, 0, tzinfo=None)
 
 
 @dynamic(
-    cache=True,
-    cache_version=CACHE_VERSION,
     requests=request_resources,
     limits=limit_resources,
 )
-def get_training_instance(location_query: str, start: datetime, end: datetime) -> TrainingInstance:
-    """Gets a single training instance.
-    
-    Before getting the raw weather data, round the start and end date so that the result can be cached.
-    """
-    logging.info(f"get training instance: {start} - {end}")
-    return prepare_training_instance(
-        training_data=get_weather_data(
-            location_query=location_query,
-            start=round_datetime(dt=start, ceil=False),
-            end=round_datetime(dt=end, ceil=True),
-            # Make sure the processed weather data cache is invalidated every hour.
-            fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
-        ),
-        start=start,
-        end=end,
-    )
-
-
-@dynamic(
-    requests=request_resources,
-    limits=limit_resources,
-)
-def get_training_instances(
-    location_query: str,
-    target_datetime: datetime,
+def get_pretraining_instances(
+    bounding_box: BoundingBox,
     genesis_datetime: datetime,
-    latest_available_datetime: datetime,
+    n_days_pretraining: int,
     lookback_window: int,
-    weather_data_cached: bool,
 ) -> List[TrainingInstance]:
-    assert weather_data_cached
+
+    genesis_datetime = genesis_datetime.replace(tzinfo=None)
+    pretraining_start_date = genesis_datetime - timedelta(days=n_days_pretraining)
+    training_data = get_weather_data(
+        bounding_box=bounding_box,
+        start=round_datetime(dt=pretraining_start_date, ceil=False),
+        end=round_datetime(dt=genesis_datetime, ceil=True),
+        # Make sure the processed weather data cache is invalidated every hour.
+        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+    ).open().all()
+
+    latest_available_datetime = training_data.index.max().to_pydatetime()
+
     training_instances = []
-    diff_in_hours = (min(latest_available_datetime, target_datetime) - genesis_datetime).days * 24
+    diff_in_hours = (min(latest_available_datetime, genesis_datetime) - pretraining_start_date).days * 24
     for i in range(1, diff_in_hours + 1):
-        current_datetime = genesis_datetime + timedelta(hours=i)
-        training_instance = get_training_instance(
-            location_query=location_query,
-            start=current_datetime - timedelta(hours=lookback_window),
-            end=current_datetime,
+        current_datetime = pretraining_start_date + timedelta(hours=i)
+        training_instances.append(
+            _prepare_training_instance(
+                training_data, start=current_datetime - timedelta(hours=lookback_window), end=current_datetime
+            )
         )
-        training_instances.append(training_instance)
     return training_instances
 
 
@@ -542,18 +543,7 @@ def encode_targets(targets: Target):
     return [[targets.dew_temp, targets.air_temp]]
 
 
-@task(
-    cache=True,
-    cache_version=CACHE_VERSION,
-    requests=request_resources,
-    limits=limit_resources,
-)
-def update_model(
-    model: str,
-    training_instance: TrainingInstance,
-    scores: Scores,
-) -> ModelUpdate:
-    model = deserialize_model(model)
+def _update_model(model, training_instance, scores):
     features = encode_features(training_instance.features)
 
     try:
@@ -574,31 +564,22 @@ def update_model(
         scores.valid_exp_mae
     )
     logging.info(f"updated model: train mae={train_exp_mae}, valid mae={valid_exp_mae}")
-    return serialize_model(model), Scores(train_exp_mae, valid_exp_mae)
+    return model, Scores(train_exp_mae, valid_exp_mae)
 
 
-@dynamic(
+@task(
+    cache=True,
+    cache_version=CACHE_VERSION,
     requests=request_resources,
     limits=limit_resources,
 )
-def get_latest_model(
-    training_instances: List[TrainingInstance],
-    genesis_datetime: datetime,
-) -> LatestModelBundle:
-    """Iterate from genesis date to target date to get the most up-to-date model.
-
-    This dynamic workflow iterates from genesis datetime to target datetime to return the
-    most up-to-date model. Note that this takes advantage of Flyte caching to ensure that
-    the model doesn't have to be re-trained every time it's called; it hits the cache
-    until it reaches the target date, which presumably hasn't been called yet.
-    """
-    genesis_datetime = genesis_datetime.replace(tzinfo=None)
-    model = init_model(genesis_datetime=genesis_datetime)
-    scores = Scores()
-
-    for training_instance in training_instances:
-        model, scores = update_model(model=model, training_instance=training_instance, scores=scores)
-    return model, scores, training_instance
+def update_model(
+    model: str,
+    training_instance: TrainingInstance,
+    scores: Scores,
+) -> ModelUpdate:
+    model, scores = _update_model(deserialize_model(model), training_instance, scores)
+    return serialize_model(model), scores, training_instance
 
 
 @task
@@ -656,23 +637,136 @@ def normalize_datetime(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
 
 
+@task
+def pretrain_model(model: str, scores: Scores, training_instances: List[TrainingInstance]) -> ModelUpdate:
+    model = deserialize_model(model)
+    for training_instance in training_instances:
+        model, scores = _update_model(model, training_instance, scores)
+    return serialize_model(model), scores, training_instance
+
+
+@dynamic(cache=True, cache_version=CACHE_VERSION)
+def _init_model(
+    bounding_box: BoundingBox,
+    genesis_datetime: datetime,
+    n_days_pretraining: int,
+    lookback_window: int,
+) -> ModelUpdate:
+    """Initialize the model."""
+    model = MultiOutputRegressor(
+        estimator=SGDRegressor(
+            penalty="l2",
+            alpha=0.001,
+            random_state=int(genesis_datetime.timestamp()),
+            learning_rate="constant",
+            eta0=0.1,
+            warm_start=True,
+            average=True,
+        )
+    )
+    return pretrain_model(
+        model=serialize_model(model),
+        scores=Scores(),
+        training_instances=get_pretraining_instances(
+            bounding_box=bounding_box,
+            genesis_datetime=genesis_datetime,
+            n_days_pretraining=n_days_pretraining,
+            lookback_window=lookback_window,
+        ),
+    )
+
+
 @dynamic(
+    cache=True,
+    cache_version=CACHE_VERSION,
     requests=request_resources,
     limits=limit_resources,
 )
-def weather_data_cached(
-    location_query: str,
-    genesis_datetime: datetime,
-    target_datetime: datetime,
-) -> bool:
-    get_weather_data(
-        location_query=location_query,
-        start=round_datetime(dt=genesis_datetime, ceil=False),
-        end=round_datetime(dt=target_datetime, ceil=True),
-        # Make sure the processed weather data cache is invalidated every hour.
-        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+def _get_training_instance(bounding_box: BoundingBox, start: datetime, end: datetime) -> TrainingInstance:
+    """Gets a single training instance.
+    
+    Before getting the raw weather data, round the start and end date so that the result can be cached.
+    """
+    logging.info(f"get training instance: {start} - {end}")
+    return prepare_training_instance(
+        training_data=get_weather_data(
+            bounding_box=bounding_box,
+            start=round_datetime(dt=start, ceil=False),
+            end=round_datetime(dt=end, ceil=True),
+            # Make sure the processed weather data cache is invalidated every hour.
+            fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+        ),
+        start=start,
+        end=end,
     )
-    return True
+
+
+@task
+def previous_timestep(dt: datetime) -> datetime:
+    return dt - timedelta(seconds=60 * 60)
+
+
+@dynamic(
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources,
+)
+def _get_updated_model_recursively(
+    bounding_box: BoundingBox,
+    target_datetime: datetime,
+    genesis_datetime: datetime,
+    n_days_pretraining: int,
+    lookback_window: int,
+)  -> ModelUpdate:
+    model, scores, _ = _get_latest_model(
+        bounding_box=bounding_box,
+        target_datetime=previous_timestep(dt=target_datetime),
+        genesis_datetime=genesis_datetime,
+        n_days_pretraining=n_days_pretraining,
+        lookback_window=lookback_window,
+    )
+    training_instance = _get_training_instance(
+        bounding_box=bounding_box,
+        start=target_datetime - timedelta(hours=lookback_window),
+        end=target_datetime,
+    )
+    return update_model(
+        model=model,
+        training_instance=training_instance,
+        scores=scores,
+    )
+
+@workflow
+def _get_latest_model(
+    bounding_box: BoundingBox,
+    target_datetime: datetime,
+    genesis_datetime: datetime,
+    n_days_pretraining: int,
+    lookback_window: int,
+) -> ModelUpdate:
+    return (
+        conditional("init_model")
+        .if_(genesis_datetime == target_datetime)
+        .then(
+            _init_model(
+                bounding_box=bounding_box,
+                genesis_datetime=genesis_datetime,
+                n_days_pretraining=n_days_pretraining,
+                lookback_window=lookback_window,
+            )
+        )
+        .else_()
+        .then(
+            _get_updated_model_recursively(
+                bounding_box=bounding_box,
+                target_datetime=target_datetime,
+                genesis_datetime=genesis_datetime,
+                n_days_pretraining=n_days_pretraining,
+                lookback_window=lookback_window,
+            )
+        )
+    )
 
 
 @workflow
@@ -680,30 +774,21 @@ def forecast_weather(
     location_query: str,
     target_datetime: datetime,
     genesis_datetime: datetime,
+    n_days_pretraining: int,
     lookback_window: int,
     forecast_window: int,
 ) -> WeatherForecast:
     target_datetime = normalize_datetime(dt=target_datetime)
     genesis_datetime = normalize_datetime(dt=genesis_datetime)
-    latest_available_datetime = latest_available_training_data(
-        location_query=location_query, start=genesis_datetime, end=target_datetime,
-    )
-    # call this once to cache the output
-    training_instances = get_training_instances(
-        location_query=location_query,
-        target_datetime=target_datetime,
+    bounding_box = get_bounding_box(location_query=location_query)
+    model, scores, latest_training_instance = _get_latest_model(
+        bounding_box=get_bounding_box(location_query=location_query),
+        target_datetime=get_target_datetime(
+            bounding_box=bounding_box, start=genesis_datetime, end=target_datetime,
+        ),
         genesis_datetime=genesis_datetime,
-        latest_available_datetime=latest_available_datetime,
+        n_days_pretraining=n_days_pretraining,
         lookback_window=lookback_window,
-        weather_data_cached=weather_data_cached(
-            location_query=location_query,
-            genesis_datetime=genesis_datetime,
-            target_datetime=target_datetime,
-        )
-    )
-    model, scores, latest_training_instance = get_latest_model(
-        training_instances=training_instances,
-        genesis_datetime=genesis_datetime,
     )
     forecast = get_forecast(
         model=model,
@@ -733,6 +818,7 @@ SLACK_NOTIFICATION = Slack(
     ],
 )
 
+# TODO: make kickoff launch plans for the initialization launch.
 
 atlanta_lp = LaunchPlan.get_or_create(
     workflow=forecast_weather,
@@ -766,8 +852,9 @@ hyderabad_lp = LaunchPlan.get_or_create(
 if __name__ == "__main__":
     forecast, scores = forecast_weather(
         location_query="Atlanta, GA US",
-        target_datetime=datetime.now() - timedelta(days=6),
-        genesis_datetime=datetime.now() - timedelta(days=7 * 4),
+        target_datetime=datetime.now() - timedelta(days=7),
+        genesis_datetime=datetime.now() - timedelta(days=7),
+        n_days_pretraining=7,
         lookback_window=24 * 3,
         forecast_window=24 * 3,
     )
