@@ -695,7 +695,7 @@ def get_updated_model_recursively(
     n_days_pretraining: int,
     lookback_window: int,
 )  -> ModelUpdate:
-    model, scores, _ = get_latest_model(
+    model, scores, prev_training_instance = get_latest_model(
         bounding_box=bounding_box,
         target_datetime=previous_timestep(dt=target_datetime),
         genesis_datetime=genesis_datetime,
