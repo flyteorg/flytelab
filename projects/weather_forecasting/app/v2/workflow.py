@@ -400,7 +400,7 @@ def _prepare_training_instance(training_data: TrainingSchema, start: datetime, e
     )
 
 
-@task
+@task(requests=request_resources, limits=limit_resources)
 def prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
     return _prepare_training_instance(training_data.open().all(), start, end)
 
@@ -411,7 +411,7 @@ def round_datetime(dt: datetime, ceil: bool) -> datetime:
     return datetime(dt.year + 1 if ceil else dt.year, 1, 1, 0, tzinfo=None)
 
 
-@task
+@task(requests=request_resources, limits=limit_resources)
 def instances_from_pretraining_data(
     training_data: TrainingSchema,
     pretraining_start_date: datetime,
@@ -567,71 +567,6 @@ def _update_model(model, scores, training_instance):
     return model, Scores(train_exp_mae, valid_exp_mae)
 
 
-@task(
-    cache=True,
-    cache_version=CACHE_VERSION,
-    requests=request_resources,
-    limits=limit_resources,
-)
-def update_model(
-    prev_model_update: ModelUpdate,
-    training_instance: TrainingInstance,
-) -> ModelUpdate:
-    model, scores = _update_model(
-        deserialize_model(prev_model_update.model_file), prev_model_update.scores, training_instance
-    )
-    return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
-
-
-@task
-def get_forecast(
-    latest_model_update: ModelUpdate,
-    target_datetime: datetime,
-    forecast_window: int,
-) -> Forecast:
-    model = deserialize_model(latest_model_update.model_file)
-    latest_training_instance = latest_model_update.training_instance
-
-    predictions = []
-    features = latest_training_instance.features
-
-    target_datetime = target_datetime.replace(tzinfo=None)
-    latest_datetime = latest_training_instance.target_datetime.replace(tzinfo=None)
-    diff = (target_datetime - latest_datetime).days * 24
-
-    n_forecasts = diff + forecast_window
-
-    latest_datetime = latest_training_instance.target_datetime.replace(tzinfo=None)
-    for i in range(n_forecasts + 1):
-        try:
-            prediction = model.predict(encode_features(features)).ravel()
-            error = None
-        except Exception as e:
-            prediction = None
-            error = str(e)
-
-        # make hourly predictions
-        current_datetime = latest_datetime + timedelta(hours=i)
-        predictions.append(
-            Prediction(
-                air_temp=prediction[1],
-                dew_temp=prediction[0],
-                date=current_datetime,
-                error=error,
-                # keep track of whether a prediction is imputed because the training
-                # data on a `date <= target_datetime` didn't contain  target labels.
-                imputed=current_datetime <= target_datetime,
-            )
-        )
-        features = Features(
-            air_temp_features=[prediction[1]] + features.air_temp_features[:-1],
-            dew_temp_features=[prediction[0]] + features.dew_temp_features[:-1],
-            time_based_feature=current_datetime,
-        )
-
-    return Forecast(created_at=target_datetime, model_id=joblib.hash(model), predictions=predictions)
-
-
 @task
 def normalize_datetime(dt: datetime) -> datetime:
     """Round date-times to the nearest hour."""
@@ -646,7 +581,12 @@ def pretrain_model(model: str, scores: Scores, training_instances: List[Training
     return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
-@dynamic(cache=True, cache_version=CACHE_VERSION)
+@dynamic(
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources,
+)
 def init_model(
     bounding_box: BoundingBox,
     genesis_datetime: datetime,
@@ -700,6 +640,22 @@ def get_training_instance(bounding_box: BoundingBox, start: datetime, end: datet
         start=start,
         end=end,
     )
+
+
+@task(
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources,
+)
+def update_model(
+    prev_model_update: ModelUpdate,
+    training_instance: TrainingInstance,
+) -> ModelUpdate:
+    model, scores = _update_model(
+        deserialize_model(prev_model_update.model_file), prev_model_update.scores, training_instance
+    )
+    return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
 @task
@@ -769,6 +725,58 @@ def get_latest_model(
     )
 
 
+@task(
+    requests=request_resources,
+    limits=limit_resources,
+)
+def get_forecast(
+    latest_model_update: ModelUpdate,
+    target_datetime: datetime,
+    forecast_window: int,
+) -> Forecast:
+    model = deserialize_model(latest_model_update.model_file)
+    latest_training_instance = latest_model_update.training_instance
+
+    predictions = []
+    features = latest_training_instance.features
+
+    target_datetime = target_datetime.replace(tzinfo=None)
+    latest_datetime = latest_training_instance.target_datetime.replace(tzinfo=None)
+    diff = (target_datetime - latest_datetime).days * 24
+
+    n_forecasts = diff + forecast_window
+
+    latest_datetime = latest_training_instance.target_datetime.replace(tzinfo=None)
+    for i in range(n_forecasts + 1):
+        try:
+            prediction = model.predict(encode_features(features)).ravel()
+            error = None
+        except Exception as e:
+            prediction = None
+            error = str(e)
+
+        # make hourly predictions
+        current_datetime = latest_datetime + timedelta(hours=i)
+        predictions.append(
+            Prediction(
+                air_temp=prediction[1],
+                dew_temp=prediction[0],
+                date=current_datetime,
+                error=error,
+                # keep track of whether a prediction is imputed because the training
+                # data on a `date <= target_datetime` didn't contain  target labels.
+                imputed=current_datetime <= target_datetime,
+            )
+        )
+        features = Features(
+            air_temp_features=[prediction[1]] + features.air_temp_features[:-1],
+            dew_temp_features=[prediction[0]] + features.dew_temp_features[:-1],
+            time_based_feature=current_datetime,
+        )
+
+    return Forecast(created_at=target_datetime, model_id=joblib.hash(model), predictions=predictions)
+
+
 @task
 def get_scores(latest_model_update: ModelUpdate) -> Scores:
     return latest_model_update.scores
@@ -824,33 +832,32 @@ SLACK_NOTIFICATION = Slack(
 )
 
 # TODO: make kickoff launch plans for the initialization launch.
+atlanta_lp = LaunchPlan.get_or_create(
+    workflow=forecast_weather,
+    name="atlanta_weather_forecast_v2",
+    default_inputs=DEFAULT_INPUTS,
+    fixed_inputs={"location_query": "Atlanta, GA USA"},
+    schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
+    notifications=[SLACK_NOTIFICATION],
+)
 
-# atlanta_lp = LaunchPlan.get_or_create(
-#     workflow=forecast_weather,
-#     name="atlanta_weather_forecast_v2",
-#     default_inputs=DEFAULT_INPUTS,
-#     fixed_inputs={"location_query": "Atlanta, GA USA"},
-#     schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
-#     notifications=[SLACK_NOTIFICATION],
-# )
+seattle_lp = LaunchPlan.get_or_create(
+    workflow=forecast_weather,
+    name="seattle_weather_forecast_v2",
+    default_inputs=DEFAULT_INPUTS,
+    fixed_inputs={"location_query": "Seattle, WA USA"},
+    schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
+    notifications=[SLACK_NOTIFICATION],
+)
 
-# seattle_lp = LaunchPlan.get_or_create(
-#     workflow=forecast_weather,
-#     name="seattle_weather_forecast_v2",
-#     default_inputs=DEFAULT_INPUTS,
-#     fixed_inputs={"location_query": "Seattle, WA USA"},
-#     schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
-#     notifications=[SLACK_NOTIFICATION],
-# )
-
-# hyderabad_lp = LaunchPlan.get_or_create(
-#     workflow=forecast_weather,
-#     name="hyderabad_weather_forecast_v2",
-#     default_inputs=DEFAULT_INPUTS,
-#     fixed_inputs={"location_query": "Hyderabad, Telangana India"},
-#     schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
-#     notifications=[SLACK_NOTIFICATION],
-# )
+hyderabad_lp = LaunchPlan.get_or_create(
+    workflow=forecast_weather,
+    name="hyderabad_weather_forecast_v2",
+    default_inputs=DEFAULT_INPUTS,
+    fixed_inputs={"location_query": "Hyderabad, Telangana India"},
+    schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
+    notifications=[SLACK_NOTIFICATION],
+)
 
 
 if __name__ == "__main__":

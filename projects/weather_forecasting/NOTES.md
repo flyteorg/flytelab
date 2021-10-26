@@ -23,12 +23,12 @@ flyte-cli -i \
 ### Remote
 
 ```bash
-flyte-cli register-project -h sandbox.uniondemo.run -p flytelab -n flytelab -d 'ML projects using Flyte'
+flyte-cli register-project -h demo.nuclyde.io -p flytelab -n flytelab -d 'ML projects using Flyte'
 ```
 
 ```bash
 flyte-cli \
-    -h sandbox.uniondemo.run \
+    -h demo.nuclyde.io \
     -p flytelab \
     -d development update-cluster-resource-attributes \
     --attributes projectQuotaCpu 16 \
@@ -73,15 +73,16 @@ REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 
-## Production [sandbox.uniondemo.run](https://sandbox.uniondemo.run/console)
+## Production [demo.nuclyde.io](https://demo.nuclyde.io/console)
 
 ### Register Workflows
 
 ```bash
-FLYTE_HOST=sandbox.uniondemo.run \
+FLYTE_HOST=demo.nuclyde.io \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
+INSECURE=true \
+OUTPUT_DATA_PREFIX=s3://flyte-demo/raw-outputs \
 REGISTRY=ghcr.io/flyteorg \
 make register
 ```
@@ -89,11 +90,12 @@ make register
 ### Fast Registering New Code
 
 ```bash
-FLYTE_HOST=sandbox.uniondemo.run \
+FLYTE_HOST=demo.nuclyde.io \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
-ADDL_DISTRIBUTION_DIR=s3://flytelab/fast \
+INSECURE=true \
+OUTPUT_DATA_PREFIX=s3://flyte-demo/raw-outputs \
+ADDL_DISTRIBUTION_DIR=s3://flyte-demo/flytelab \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
@@ -103,13 +105,13 @@ make fast_register
 List launch plan versions
 
 ```bash
-flyte-cli -h sandbox.uniondemo.run -p flytelab -d development list-launch-plan-versions
+flyte-cli -h demo.nuclyde.io -p flytelab -d development list-launch-plan-versions
 ```
 
 Get the `urn` of the launch plan you want to activate, e.g. `lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a`
 
 ```bash
-flyte-cli update-launch-plan -h sandbox.uniondemo.run --state active -u lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a
+flyte-cli update-launch-plan -h demo.nuclyde.io --state active -u lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a
 ```
 
 ### Test NOAA API
