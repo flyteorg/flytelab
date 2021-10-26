@@ -94,21 +94,19 @@ serialize:
 	echo ${CURDIR}
 	rm -rf ${CURDIR}/_pb_output || true
 	mkdir ${CURDIR}/_pb_output || true
-	pyflyte -c flyte.config --pkgs app serialize \
-		--in-container-config-path /root/flyte.config \
-		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION} workflows -f _pb_output
+	pyflyte -c flyte.config --pkgs app package \
+		--force \
+		--in-container-source-path /root \
+		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
 
 .PHONY: register
-# register: docker-build docker-push serialize
 register: docker-build docker-push serialize
-	flyte-cli register-files ${INSECURE} \
-		-h ${FLYTE_HOST} \
-		-p ${PROJECT} \
-		-d ${DOMAIN} \
-		-v ${VERSION} \
-		-s ${SERVICE_ACCOUNT} \
-		-o ${OUTPUT_DATA_PREFIX} \
-		${CURDIR}/_pb_output/*
+	flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+		register files \
+		--project flytelab \
+		--domain development \
+		--archive flyte-package.tgz \
+		--version ${VERSION}
 
 .PHONY: fast_serialize
 fast_serialize:

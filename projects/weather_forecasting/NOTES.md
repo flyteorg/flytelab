@@ -78,11 +78,15 @@ make fast_register
 ### Register Workflows
 
 ```bash
+
+```
+
+```bash
 FLYTE_HOST=demo.nuclyde.io \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
 INSECURE=true \
-OUTPUT_DATA_PREFIX=s3://flyte-demo/raw-outputs \
+OUTPUT_DATA_PREFIX=s3://flyte-demo \
 REGISTRY=ghcr.io/flyteorg \
 make register
 ```
@@ -94,7 +98,7 @@ FLYTE_HOST=demo.nuclyde.io \
 FLYTE_CONFIG=.flyte/remote.config \
 SERVICE_ACCOUNT=default \
 INSECURE=true \
-OUTPUT_DATA_PREFIX=s3://flyte-demo/raw-outputs \
+OUTPUT_DATA_PREFIX=s3://flyte-demo \
 ADDL_DISTRIBUTION_DIR=s3://flyte-demo/flytelab \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
