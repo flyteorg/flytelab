@@ -48,8 +48,8 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
-geolocator = Nominatim(user_agent=USER_AGENT)
-geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
+geolocator = Nominatim(user_agent=USER_AGENT, timeout=10)
+geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1, max_retries=10)
 
 
 TrainingSchema = FlyteSchema[kwtypes(date=datetime, air_temp=float, dew_temp=float)]
@@ -572,7 +572,7 @@ def update_model(
     training_instance: TrainingInstance,
 ) -> ModelUpdate:
     model, scores = _update_model(deserialize_model(model), scores, training_instance)
-    return ModelUpdate(serialize_model(model), scores, training_instance)
+    return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
 @task
@@ -635,7 +635,7 @@ def pretrain_model(model: str, scores: Scores, training_instances: List[Training
     model = deserialize_model(model)
     for training_instance in training_instances:
         model, scores = _update_model(model, scores, training_instance)
-    return ModelUpdate(serialize_model(model), scores, training_instance)
+    return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
 @dynamic(cache=True, cache_version=CACHE_VERSION)
@@ -712,7 +712,7 @@ def get_updated_model_recursively(
     n_days_pretraining: int,
     lookback_window: int,
 )  -> ModelUpdate:
-    model, scores, prev_training_instance = get_latest_model(
+    model_update = get_latest_model(
         bounding_box=bounding_box,
         target_datetime=previous_timestep(dt=target_datetime),
         genesis_datetime=genesis_datetime,
@@ -725,8 +725,8 @@ def get_updated_model_recursively(
         end=target_datetime,
     )
     return update_model(
-        model=model,
-        scores=scores,
+        model=model_update.model_file,
+        scores=model_update.scores,
         training_instance=training_instance,
     )
 
