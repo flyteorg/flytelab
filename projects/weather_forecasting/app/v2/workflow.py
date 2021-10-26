@@ -40,7 +40,7 @@ DATA_ACCESS_URL = "https://www.ncei.noaa.gov"
 DATASET_ID = "global-hourly"
 MISSING_DATA_INDICATOR = 9999
 MAX_RETRIES = 10
-CACHE_VERSION = "2.0"
+CACHE_VERSION = "2.1"
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -152,8 +152,8 @@ class ModelUpdate:
     scores: Scores
     training_instance: TrainingInstance
 
+
 ApiResult = NamedTuple("ApiResult", results=List[dict], count=int)
-# ModelUpdate = NamedTuple("ModelUpdate", model_file=str, scores=Scores, training_instance=TrainingInstance)
 WeatherForecast = NamedTuple("WeatherForecast", forecast=Forecast, scores=Scores)
 
 
