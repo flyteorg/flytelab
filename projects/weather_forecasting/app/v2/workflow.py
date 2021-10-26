@@ -40,7 +40,7 @@ DATA_ACCESS_URL = "https://www.ncei.noaa.gov"
 DATASET_ID = "global-hourly"
 MISSING_DATA_INDICATOR = 9999
 MAX_RETRIES = 10
-CACHE_VERSION = "1.9"
+CACHE_VERSION = "2.0"
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
