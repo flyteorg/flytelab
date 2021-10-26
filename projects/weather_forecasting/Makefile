@@ -100,7 +100,7 @@ serialize:
 
 .PHONY: register
 # register: docker-build docker-push serialize
-register: serialize
+register: docker-build docker-push serialize
 	flyte-cli register-files ${INSECURE} \
 		-h ${FLYTE_HOST} \
 		-p ${PROJECT} \
