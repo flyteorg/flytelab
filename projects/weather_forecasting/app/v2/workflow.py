@@ -145,8 +145,15 @@ class BoundingBox:
     east: str
 
 
+@dataclass_json
+@dataclass
+class ModelUpdate:
+    model_file: str
+    scores: Scores
+    training_instance: TrainingInstance
+
 ApiResult = NamedTuple("ApiResult", results=List[dict], count=int)
-ModelUpdate = NamedTuple("ModelUpdate", model_file=str, scores=Scores, training_instance=TrainingInstance)
+# ModelUpdate = NamedTuple("ModelUpdate", model_file=str, scores=Scores, training_instance=TrainingInstance)
 WeatherForecast = NamedTuple("WeatherForecast", forecast=Forecast, scores=Scores)
 
 
@@ -567,22 +574,23 @@ def _update_model(model, scores, training_instance):
     limits=limit_resources,
 )
 def update_model(
-    model: str,
-    scores: Scores,
+    prev_model_update: ModelUpdate,
     training_instance: TrainingInstance,
 ) -> ModelUpdate:
-    model, scores = _update_model(deserialize_model(model), scores, training_instance)
+    model, scores = _update_model(
+        deserialize_model(prev_model_update.model_file), prev_model_update.scores, training_instance
+    )
     return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
 @task
 def get_forecast(
-    model: str,
-    latest_training_instance: TrainingInstance,
+    latest_model_update: ModelUpdate,
     target_datetime: datetime,
     forecast_window: int,
 ) -> Forecast:
-    model = deserialize_model(model)
+    model = deserialize_model(latest_model_update.model_file)
+    latest_training_instance = latest_model_update.training_instance
 
     predictions = []
     features = latest_training_instance.features
@@ -712,7 +720,7 @@ def get_updated_model_recursively(
     n_days_pretraining: int,
     lookback_window: int,
 )  -> ModelUpdate:
-    model_update = get_latest_model(
+    prev_model_update = get_latest_model(
         bounding_box=bounding_box,
         target_datetime=previous_timestep(dt=target_datetime),
         genesis_datetime=genesis_datetime,
@@ -725,8 +733,7 @@ def get_updated_model_recursively(
         end=target_datetime,
     )
     return update_model(
-        model=model_update.model_file,
-        scores=model_update.scores,
+        prev_model_update=prev_model_update,
         training_instance=training_instance,
     )
 
@@ -762,6 +769,11 @@ def get_latest_model(
     )
 
 
+@task
+def get_scores(latest_model_update: ModelUpdate) -> Scores:
+    return latest_model_update.scores
+
+
 @workflow
 def forecast_weather(
     location_query: str,
@@ -774,7 +786,7 @@ def forecast_weather(
     target_datetime = normalize_datetime(dt=target_datetime)
     genesis_datetime = normalize_datetime(dt=genesis_datetime)
     bounding_box = get_bounding_box(location_query=location_query)
-    model, scores, latest_training_instance = get_latest_model(
+    latest_model_update = get_latest_model(
         bounding_box=get_bounding_box(location_query=location_query),
         target_datetime=get_target_datetime(
             bounding_box=bounding_box, start=genesis_datetime, end=target_datetime,
@@ -784,12 +796,11 @@ def forecast_weather(
         lookback_window=lookback_window,
     )
     forecast = get_forecast(
-        model=model,
-        latest_training_instance=latest_training_instance,
+        latest_model_update=latest_model_update,
         target_datetime=target_datetime,
         forecast_window=forecast_window,
     )
-    return forecast, scores
+    return forecast, get_scores(latest_model_update=latest_model_update)
 
 
 DEFAULT_INPUTS = {
@@ -854,5 +865,4 @@ if __name__ == "__main__":
     print("Forecasts:")
     for prediction in forecast.predictions:
         print(prediction)
-
     print(f"Scores: {scores}")
