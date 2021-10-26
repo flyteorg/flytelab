@@ -15,6 +15,10 @@ ifndef SERVICE_ACCOUNT
 	SERVICE_ACCOUNT=default
 endif
 
+ifndef FLYTECTL_CONFIG
+	FLYTECTL_CONFIG=~/.flyte/config.yaml
+endif
+
 
 # If the REGISTRY environment variable has been set, that means the image name will not just be tagged as
 #   flytecookbook:<sha> but rather,
@@ -94,18 +98,19 @@ serialize:
 	echo ${CURDIR}
 	rm -rf ${CURDIR}/_pb_output || true
 	mkdir ${CURDIR}/_pb_output || true
-	pyflyte -c flyte.config --pkgs app package \
+	pyflyte -c flyte.config --pkgs app.v2 package \
 		--force \
 		--in-container-source-path /root \
 		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
 
 .PHONY: register
 register: docker-build docker-push serialize
-	flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+	flytectl -c ${FLYTECTL_CONFIG} \
 		register files \
 		--project flytelab \
 		--domain development \
 		--archive flyte-package.tgz \
+		--k8sServiceAccount ${SERVICE_ACCOUNT} \
 		--version ${VERSION}
 
 .PHONY: fast_serialize
@@ -113,17 +118,18 @@ fast_serialize:
 	echo ${CURDIR}
 	mkdir ${CURDIR}/_pb_output || true
 	rm ${CURDIR}/_pb_output/* || true
-	pyflyte -c flyte.config --pkgs app serialize \
-		--in-container-config-path ${FLYTE_CONFIG} \
-		--image ${FLYTE_INTERNAL_LATEST} fast workflows -f _pb_output/
+	pyflyte -c flyte.config --pkgs app.v2 package \
+		--force \
+		--in-container-source-path /root \
+		--fast \
+		--image ${FLYTE_INTERNAL_LATEST}
 
 .PHONY: fast_register
 fast_register: fast_serialize
-	flyte-cli fast-register-files ${INSECURE} \
-		-h ${FLYTE_HOST} \
-		-p ${PROJECT} \
-		-d ${DOMAIN} \
-		-s ${SERVICE_ACCOUNT} \
-		-o ${OUTPUT_DATA_PREFIX} \
-		--additional-distribution-dir ${ADDL_DISTRIBUTION_DIR} \
-		_pb_output/*
+	flytectl -c ${FLYTECTL_CONFIG}} \
+		register files \
+		--project flytelab \
+		--domain development \
+		--archive flyte-package.tgz \
+		--k8sServiceAccount ${SERVICE_ACCOUNT} \
+		--version fast${VERSION}

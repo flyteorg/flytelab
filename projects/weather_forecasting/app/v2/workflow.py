@@ -24,7 +24,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.multioutput import MultiOutputRegressor
 
 import flytekit
-from flytekit import conditional, dynamic, task, workflow, kwtypes, CronSchedule, LaunchPlan, Resources, Slack
+from flytekit import conditional, dynamic, task, workflow, kwtypes, CronSchedule, LaunchPlan, Resources, Slack, Email
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
 from flytekit.types.schema import FlyteSchema
@@ -345,24 +345,6 @@ def get_weather_data(
     return training_data
 
 
-@task(
-    cache=True,
-    cache_version=CACHE_VERSION,
-    requests=request_resources,
-    limits=limit_resources,
-)
-def get_target_datetime(
-    bounding_box: BoundingBox,
-    start: datetime,
-    end: datetime,
-) -> datetime:
-    """Get the date of the latest available training data."""
-    end = end.replace(tzinfo=None)
-    [response, *_], _ = call_noaa_api(bounding_box=bounding_box, start=start, end=end, responses=[])
-    latest_available = pd.to_datetime(response["endDate"]).floor("H").to_pydatetime()
-    return min(end, latest_available)
-
-
 def _prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
     logging.info(f"get training instance: {start} - {end}")
 
@@ -568,12 +550,6 @@ def _update_model(model, scores, training_instance):
 
 
 @task
-def normalize_datetime(dt: datetime) -> datetime:
-    """Round date-times to the nearest hour."""
-    return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
-
-
-@task
 def pretrain_model(model: str, scores: Scores, training_instances: List[TrainingInstance]) -> ModelUpdate:
     model = deserialize_model(model)
     for training_instance in training_instances:
@@ -683,6 +659,8 @@ def get_updated_model_recursively(
         n_days_pretraining=n_days_pretraining,
         lookback_window=lookback_window,
     )
+    # TODO: if target_datetime is more than one timestep greater than prev_model_update,
+    # then do multi-instance update
     training_instance = get_training_instance(
         bounding_box=bounding_box,
         start=target_datetime - timedelta(hours=lookback_window),
@@ -777,6 +755,38 @@ def get_forecast(
     return Forecast(created_at=target_datetime, model_id=joblib.hash(model), predictions=predictions)
 
 
+def round_datetime_to_hour(dt: datetime) -> datetime:
+    """Round date-times to the nearest hour."""
+    return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
+
+
+@task(
+    cache=True,
+    cache_version=CACHE_VERSION,
+    requests=request_resources,
+    limits=limit_resources,
+)
+def normalize_datetimes(
+    bounding_box: BoundingBox,
+    genesis_datetime: datetime,
+    target_datetime: datetime,
+) -> NamedTuple("NormalizedDatetimes", genesis_datetime=datetime, target_datetime=datetime):
+    """Get the date of the latest available training data."""
+    genesis_datetime = round_datetime_to_hour(genesis_datetime)
+    target_datetime = round_datetime_to_hour(target_datetime)
+    [response, *_], _ = call_noaa_api(
+        bounding_box=bounding_box,
+        start=datetime(genesis_datetime.year, 1, 1, 0, tzinfo=None),
+        end=target_datetime,
+        responses=[]
+    )
+    latest_available = pd.to_datetime(response["endDate"]).floor("H").to_pydatetime()
+    target_datetime = min(target_datetime, latest_available)
+    if target_datetime < genesis_datetime:
+        genesis_datetime = latest_available
+    return genesis_datetime, target_datetime
+
+
 @task
 def get_scores(latest_model_update: ModelUpdate) -> Scores:
     return latest_model_update.scores
@@ -791,14 +801,15 @@ def forecast_weather(
     lookback_window: int,
     forecast_window: int,
 ) -> WeatherForecast:
-    target_datetime = normalize_datetime(dt=target_datetime)
-    genesis_datetime = normalize_datetime(dt=genesis_datetime)
     bounding_box = get_bounding_box(location_query=location_query)
+    genesis_datetime, target_datetime = normalize_datetimes(
+        bounding_box=bounding_box,
+        genesis_datetime=genesis_datetime,
+        target_datetime=target_datetime,
+    )
     latest_model_update = get_latest_model(
         bounding_box=get_bounding_box(location_query=location_query),
-        target_datetime=get_target_datetime(
-            bounding_box=bounding_box, start=genesis_datetime, end=target_datetime,
-        ),
+        target_datetime=target_datetime,
         genesis_datetime=genesis_datetime,
         n_days_pretraining=n_days_pretraining,
         lookback_window=lookback_window,
@@ -811,13 +822,24 @@ def forecast_weather(
     return forecast, get_scores(latest_model_update=latest_model_update)
 
 
+# by default, set target and genesis datetime launchplan to previous day.
+NOW = (pd.Timestamp.now().floor("H") - pd.Timedelta(days=1)).to_pydatetime()
 DEFAULT_INPUTS = {
-    "target_datetime": datetime(2021, 10, 1),
-    "genesis_datetime": datetime(2021, 10, 1),
-    "n_days_pretraining": 7,
+    "target_datetime": NOW,
+    "genesis_datetime": NOW,
+    "n_days_pretraining": 14,
     "lookback_window": 24 * 3,  # 3-day lookback
     "forecast_window": 24 * 3,  # 3-day forecast
 }
+
+EMAIL_NOTIFICATION = Email(
+    phases=[
+        WorkflowExecutionPhase.SUCCEEDED,
+        WorkflowExecutionPhase.TIMED_OUT,
+        WorkflowExecutionPhase.FAILED,
+    ],
+    recipients_email=["niels@union.ai"]
+)
 
 SLACK_NOTIFICATION = Slack(
     phases=[
@@ -825,10 +847,7 @@ SLACK_NOTIFICATION = Slack(
         WorkflowExecutionPhase.TIMED_OUT,
         WorkflowExecutionPhase.FAILED,
     ],
-    recipients_email=[
-        "flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com",
-        "niels@union.ai",
-    ],
+    recipients_email=["flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com"],
 )
 
 # TODO: make kickoff launch plans for the initialization launch.
@@ -837,27 +856,35 @@ atlanta_lp = LaunchPlan.get_or_create(
     name="atlanta_weather_forecast_v2",
     default_inputs=DEFAULT_INPUTS,
     fixed_inputs={"location_query": "Atlanta, GA USA"},
-    schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
-    notifications=[SLACK_NOTIFICATION],
+    # schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
+    # schedule=CronSchedule("0 * * * *"),  # every hour
+    schedule=CronSchedule(
+        schedule="0 * * * *",
+        kickoff_time_input_arg="target_datetime",
+    ),  # every 10 minutes
+    notifications=[
+        EMAIL_NOTIFICATION,
+        SLACK_NOTIFICATION,
+    ],
 )
 
-seattle_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="seattle_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Seattle, WA USA"},
-    schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
-    notifications=[SLACK_NOTIFICATION],
-)
+# seattle_lp = LaunchPlan.get_or_create(
+#     workflow=forecast_weather,
+#     name="seattle_weather_forecast_v2",
+#     default_inputs=DEFAULT_INPUTS,
+#     fixed_inputs={"location_query": "Seattle, WA USA"},
+#     schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
+#     notifications=[SLACK_NOTIFICATION],
+# )
 
-hyderabad_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="hyderabad_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Hyderabad, Telangana India"},
-    schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
-    notifications=[SLACK_NOTIFICATION],
-)
+# hyderabad_lp = LaunchPlan.get_or_create(
+#     workflow=forecast_weather,
+#     name="hyderabad_weather_forecast_v2",
+#     default_inputs=DEFAULT_INPUTS,
+#     fixed_inputs={"location_query": "Hyderabad, Telangana India"},
+#     schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
+#     notifications=[SLACK_NOTIFICATION],
+# )
 
 
 if __name__ == "__main__":
