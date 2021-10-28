@@ -61,7 +61,7 @@ st.set_page_config(
     page_icon=LOGO,
 )
 
-_, _, col, *_ = st.beta_columns(5)
+_, _, col, *_ = st.columns(5)
 with col:
     st.image(LOGO, width=100)
 st.title("Flytelab: Weather Forecasts ⛈☀️☔️")
@@ -102,7 +102,7 @@ literals = wf_execution_output.full_outputs.literals
 forecast = Forecast.from_json(MessageToJson(literals["forecast"].scalar.generic))
 scores = Scores.from_json(MessageToJson(literals["scores"].scalar.generic))
 
-with st.beta_expander("Model Metadata"):
+with st.expander("Model Metadata"):
     st.markdown(f"""
     ```
     model_id: {forecast.model_id}
