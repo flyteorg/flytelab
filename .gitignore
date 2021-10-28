@@ -4,6 +4,7 @@ env.txt
 .vscode
 **/_pb_output/*
 bin
+flyte-package.tgz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

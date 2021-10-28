@@ -156,5 +156,14 @@ To run locally:
 ```
 pip install streamlit
 export FLYTE_CREDENTIALS_CLIENT_SECRET=<secret>
-streamlit run dashboard/weather_forecasting.py
+streamlit run dashboard/weather_forecasting_v2.py
 ```
+
+
+## Resources
+
+Here are some additional resources related to this project:
+
+- [awesome online machine learning](https://github.com/MaxHalford/awesome-online-machine-learning)
+- [The correct way to evaluate online machine learning models](https://maxhalford.github.io/blog/online-learning-evaluation/)
+-  [Time Series Modeling using Scikit, Pandas, and Numpy](https://towardsdatascience.com/time-series-modeling-using-scikit-pandas-and-numpy-682e3b8db8d1)

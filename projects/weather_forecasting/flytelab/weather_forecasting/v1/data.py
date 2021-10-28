@@ -19,7 +19,7 @@ from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 
-from flytelab.weather_forecasting import types
+from flytelab.weather_forecasting.v1 import types
 
 
 USER_AGENT = "flyte-weather-forecasting"

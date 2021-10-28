@@ -11,7 +11,7 @@ from typing import Callable, List, Optional
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-from flytelab.weather_forecasting import data, types
+from flytelab.weather_forecasting.v1 import data, types
 
 
 logger = logging.getLogger(__file__)

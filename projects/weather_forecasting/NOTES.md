@@ -23,12 +23,12 @@ flyte-cli -i \
 ### Remote
 
 ```bash
-flyte-cli register-project -h sandbox.uniondemo.run -p flytelab -n flytelab -d 'ML projects using Flyte'
+flyte-cli register-project -h demo.nuclyde.io -p flytelab -n flytelab -d 'ML projects using Flyte'
 ```
 
 ```bash
 flyte-cli \
-    -h sandbox.uniondemo.run \
+    -h demo.nuclyde.io \
     -p flytelab \
     -d development update-cluster-resource-attributes \
     --attributes projectQuotaCpu 16 \
@@ -52,7 +52,7 @@ INSECURE=true \
 FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make register
 ```
 
@@ -69,32 +69,42 @@ FLYTE_HOST=localhost:30081 \
 FLYTE_CONFIG=.flyte/sandbox.config \
 OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
 ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/cookbook \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 
-## Production [sandbox.uniondemo.run](https://sandbox.uniondemo.run/console)
+## Production [demo.nuclyde.io](https://demo.nuclyde.io/console)
+
+Make sure you have a config file `~/.flyte/nuclydedemo-config.yaml` in your local filesystem:
+
+```
+admin:
+  # For GRPC endpoints you might want to use dns:///flyte.myexample.com
+  endpoint: dns:///demo.nuclyde.io
+  authType: Pkce
+  # Change insecure flag to ensure that you use the right setting for your environment
+  insecure: false
+logger:
+  # Logger settings to control logger output. Useful to debug logger:
+  show-source: true
+  level: 1
+```
 
 ### Register Workflows
 
 ```bash
-FLYTE_HOST=sandbox.uniondemo.run \
-FLYTE_CONFIG=.flyte/remote.config \
-SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+FLYTECTL_CONFIG=~/.flyte/nuclydedemo-config.yaml \
+SERVICE_ACCOUNT=demo \
+REGISTRY=ghcr.io/flyteorg \
 make register
 ```
 
 ### Fast Registering New Code
 
 ```bash
-FLYTE_HOST=sandbox.uniondemo.run \
-FLYTE_CONFIG=.flyte/remote.config \
-SERVICE_ACCOUNT=default \
-OUTPUT_DATA_PREFIX=s3://flytelab/raw_data \
-ADDL_DISTRIBUTION_DIR=s3://flytelab/fast \
-REGISTRY=public.ecr.aws/r1m6i5g8 \
+FLYTECTL_CONFIG=~/.flyte/nuclydedemo-config.yaml \
+SERVICE_ACCOUNT=demo \
+REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 
@@ -103,13 +113,37 @@ make fast_register
 List launch plan versions
 
 ```bash
-flyte-cli -h sandbox.uniondemo.run -p flytelab -d development list-launch-plan-versions
+flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+    get launchplan \
+    -p flytelab \
+    -d development \
+    -o yaml \
+    --latest \
+    atlanta_weather_forecast_v2
 ```
 
-Get the `urn` of the launch plan you want to activate, e.g. `lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a`
+Get the `version` of the launch plan you want to activate, then:
 
 ```bash
-flyte-cli update-launch-plan -h sandbox.uniondemo.run --state active -u lp:flytelab:development:atlanta_weather_forecast:2aa94baac33217d4c89685946a8e434b15d48f3a
+flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+    update launchplan \
+    -p flytelab \
+    -d development \
+    atlanta_weather_forecast_v2 \
+    --version <version> \
+    --activate
+```
+
+To deactivate:
+
+```bash
+flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+    update launchplan \
+    -p flytelab \
+    -d development \
+    atlanta_weather_forecast_v2 \
+    --version <version> \
+    --archive
 ```
 
 ### Test NOAA API

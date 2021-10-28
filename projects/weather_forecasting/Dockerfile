@@ -30,9 +30,10 @@ ENV PATH="${VENV}/bin:$PATH"
 # Install Python dependencies
 COPY requirements.txt /root
 COPY flytelab /root/flytelab
-COPY app /root/app
 COPY setup.py /root
 RUN pip install -r /root/requirements.txt
+
+COPY app /root/app
 
 # Copy the makefile targets to expose on the container. This makes it easier to register
 COPY in_container.mk /root/Makefile
