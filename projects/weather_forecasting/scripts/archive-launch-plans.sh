@@ -21,6 +21,6 @@ archive () {
 
 for location in $locations
 do
-    echo activating launch plan version $version for $location
+    echo archiving launch plan version $version for $location
     archive $location
 done

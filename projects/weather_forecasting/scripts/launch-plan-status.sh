@@ -9,19 +9,19 @@ fi
 locations="atlanta seattle hyderabad mumbai taipei appleton dharamshala"
 
 
-activate () {
+get-status () {
     flytectl -c ~/.flyte/nuclydedemo-config.yaml \
-        update launchplan \
+        get launchplan \
         -p flytelab \
         -d development \
-        "$1_weather_forecast_v2" \
-        --version $version \
-        --activate
+        -o yaml \
+        --latest \
+        "$1_weather_forecast_v2"
 }
 
 for location in $locations
 do
-    echo activating launch plan version $version for $location
-    activate $location
+    echo "launch plan status for $location, version: $version"
+    get-status $location | grep state
     echo
 done

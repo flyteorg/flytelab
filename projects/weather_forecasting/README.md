@@ -155,7 +155,7 @@ To run locally:
 
 ```
 pip install streamlit
-export FLYTE_CREDENTIALS_CLIENT_SECRET=foobar
+export FLYTE_CREDENTIALS_CLIENT_SECRET=<secret>
 streamlit run dashboard/weather_forecasting_v2.py
 ```
 
