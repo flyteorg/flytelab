@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="flytelab - weather forecasts",
     page_icon=LOGO,
 )
-client = SynchronousFlyteClient("sandbox.uniondemo.run")
+client = SynchronousFlyteClient("demo.nuclyde.io")
 
 _, _, col, *_ = st.beta_columns(5)
 with col:
@@ -37,22 +37,23 @@ see the [flytelab weather forecasting project](https://github.com/flyteorg/flyte
 """
 
 launch_plan_map = {
-    "seattle_wa_usa": "seattle_weather_forecast",
-    "atlanta_ga_usa": "atlanta_weather_forecast",
-    "hyderabad_ga_usa": "hyderabad_weather_forecast",
+    # "seattle_wa_usa": "seattle_weather_forecast",
+    "atlanta_ga_usa": "atlanta_weather_forecast_v2",
+    # "hyderabad_ga_usa": "hyderabad_weather_forecast",
 }
 
 city_label_map = {
     "atlanta_ga_usa": "Atlanta, GA USA",
     "seattle_wa_usa": "Seattle, WA USA",
-    "hyderabad_ga_usa": "Hyderabad, Telangana India",
+    "hyderabad_in": "Hyderabad, Telangana India",
 }
 
-selected_city = st.selectbox(
-    "Select a City",
-    options=["atlanta_ga_usa", "seattle_wa_usa", "hyderabad_ga_usa"],
-    format_func=lambda x: city_label_map[x]
-)
+# selected_city = st.selectbox(
+#     "Select a City",
+#     options=["atlanta_ga_usa", "seattle_wa_usa", "hyderabad_in"],
+#     format_func=lambda x: city_label_map[x]
+# )
+selected_city = "atlanta_ga_usa"
 
 executions, _ = client.list_executions_paginated(
     "flytelab",
@@ -65,30 +66,31 @@ executions, _ = client.list_executions_paginated(
     sort_by=Sort.from_python_std("desc(execution_created_at)"),
 )
 
+
 wf_execution = FlyteWorkflowExecution.fetch("flytelab", "development", executions[0].id.name)
 if "forecast" in wf_execution.outputs.literals:
     forecast_key = "forecast"
 else:
     forecast_key = "o0"
 
-forecast = types.Forecast.from_json(MessageToJson(wf_execution.outputs.literals[forecast_key].scalar.generic))
+# forecast = types.Forecast.from_json(MessageToJson(wf_execution.outputs.literals[forecast_key].scalar.generic))
 
-with st.beta_expander("Model Metadata"):
-    st.markdown(f"""
-    ```
-    model_id: {forecast.model_id}
-    created_at: {forecast.created_at}
-    ```
-    """)
+# with st.beta_expander("Model Metadata"):
+#     st.markdown(f"""
+#     ```
+#     model_id: {forecast.model_id}
+#     created_at: {forecast.created_at}
+#     ```
+#     """)
 
-st.markdown(f"""
-## {city_label_map[selected_city]}
----
-""")
+# st.markdown(f"""
+# ## {city_label_map[selected_city]}
+# ---
+# """)
 
-for prediction in forecast.predictions[::-1]:
-    if prediction.date.date() < datetime.datetime.now().date():
-        continue
-    st.markdown(f"### {prediction.date.date().strftime('%m/%d/%Y')}")
-    st.markdown(f"🌡 **Mean Temperature**: {prediction.value:0.02f} °C")
-    st.markdown("---")
+# for prediction in forecast.predictions[::-1]:
+#     if prediction.date.date() < datetime.datetime.now().date():
+#         continue
+#     st.markdown(f"### {prediction.date.date().strftime('%m/%d/%Y')}")
+#     st.markdown(f"🌡 **Mean Temperature**: {prediction.value:0.02f} °C")
+#     st.markdown("---")

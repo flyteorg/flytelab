@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, NamedTuple, Optional
 
-import geopy
 import joblib
 import numpy as np
 import pandas as pd
@@ -23,7 +22,6 @@ from sklearn.linear_model import SGDRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.multioutput import MultiOutputRegressor
 
-import flytekit
 from flytekit import conditional, dynamic, task, workflow, kwtypes, CronSchedule, LaunchPlan, Resources, Slack, Email
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
@@ -43,7 +41,7 @@ MAX_RETRIES = 10
 CACHE_VERSION = "2.1"
 
 logger = logging.getLogger(__file__)
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+# logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
@@ -214,10 +212,9 @@ def get_bounding_box(location_query: str) -> BoundingBox:
     - from geocoder format: https://nominatim.org/release-docs/develop/api/Output/#boundingbox
     - to NOAA API format: https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation
     """
-    # location = geocode(location_query)
-    # south, north, west, east = range(4)
-    # return BoundingBox(*[location.raw["boundingbox"][i] for i in [north, west, south, east]])
-    return BoundingBox("33.873", "-84.516", "33.623", "-84.266")
+    location = geocode(location_query)
+    south, north, west, east = range(4)
+    return BoundingBox(*[location.raw["boundingbox"][i] for i in [north, west, south, east]])
 
 
 def get_global_hourly_data_responses(
@@ -279,6 +276,10 @@ def parse_global_hourly_data(df: DataFrame[GlobalHourlyDataRaw]) -> DataFrame[Gl
         .loc[lambda df: ~df.air_temp_quality_code.isin({"3", "7"})]
         # get hourly mean air temperature across readings of different sensor locations
         .groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
+        # resample at hourly interval to make sure all hourly intervals have an entry
+        .resample("1H").mean()
+        # linearly interpolate into the future
+        .interpolate(method="linear", limit_direction="forward", limit=None)
     )
 
 
@@ -369,8 +370,6 @@ def _prepare_training_instance(training_data: TrainingSchema, start: datetime, e
             air_temp=training_data["air_temp"].loc[end],
             dew_temp=training_data["dew_temp"].loc[end],
         )
-    if math.isnan(target.air_temp):
-        import ipdb; ipdb.set_trace()
     return TrainingInstance(
         target_datetime=end,
         features=Features(
@@ -405,13 +404,12 @@ def instances_from_pretraining_data(
     diff_in_hours = (genesis_datetime - pretraining_start_date).days * 24
     for i in range(1, diff_in_hours + 1):
         current_datetime = pretraining_start_date + timedelta(hours=i)
-        training_instances.append(
-            _prepare_training_instance(
-                training_data=training_data,
-                start=current_datetime - timedelta(hours=lookback_window),
-                end=current_datetime,
-            )
+        training_instance = _prepare_training_instance(
+            training_data=training_data,
+            start=current_datetime - timedelta(hours=lookback_window),
+            end=current_datetime,
         )
+        training_instances.append(training_instance)
     return training_instances
 
 
@@ -850,53 +848,47 @@ SLACK_NOTIFICATION = Slack(
     recipients_email=["flytlab-notifications-aaaad6weta5ic55r7lmejgwzha@unionai.slack.com"],
 )
 
-# TODO: make kickoff launch plans for the initialization launch.
-atlanta_lp = LaunchPlan.get_or_create(
-    workflow=forecast_weather,
-    name="atlanta_weather_forecast_v2",
-    default_inputs=DEFAULT_INPUTS,
-    fixed_inputs={"location_query": "Atlanta, GA USA"},
-    # schedule=CronSchedule("0 4 * * ? *"),  # EST midnight
-    # schedule=CronSchedule("0 * * * *"),  # every hour
-    schedule=CronSchedule(
-        schedule="0 * * * *",
-        kickoff_time_input_arg="target_datetime",
-    ),  # every 10 minutes
-    notifications=[
-        EMAIL_NOTIFICATION,
-        SLACK_NOTIFICATION,
-    ],
+# run the job every hour
+CRON_SCHEDULE = CronSchedule(
+    schedule="0 * * * *",
+    kickoff_time_input_arg="target_datetime",
 )
 
-# seattle_lp = LaunchPlan.get_or_create(
-#     workflow=forecast_weather,
-#     name="seattle_weather_forecast_v2",
-#     default_inputs=DEFAULT_INPUTS,
-#     fixed_inputs={"location_query": "Seattle, WA USA"},
-#     schedule=CronSchedule("0 7 * * ? *"),  # PST midnight
-#     notifications=[SLACK_NOTIFICATION],
-# )
+KWARGS = {
+    "default_inputs": DEFAULT_INPUTS,
+    "schedule": CRON_SCHEDULE,
+    "notifications": [EMAIL_NOTIFICATION, SLACK_NOTIFICATION],
+}
 
-# hyderabad_lp = LaunchPlan.get_or_create(
-#     workflow=forecast_weather,
-#     name="hyderabad_weather_forecast_v2",
-#     default_inputs=DEFAULT_INPUTS,
-#     fixed_inputs={"location_query": "Hyderabad, Telangana India"},
-#     schedule=CronSchedule("30 18 * * ? *"),  # IST midnight
-#     notifications=[SLACK_NOTIFICATION],
-# )
+LOCATIONS = {
+    "atlanta": "Atlanta, GA USA",
+    "seattle": "Seattle, WA USA",
+    "hyderabad": "Hyderabad, Telangana India",
+    "mumbai": "Mumbai, MH India",
+    "taipei": "Taipei, Taiwan",
+}
+
+for location_name, location_query in LOCATIONS.items():
+    LaunchPlan.get_or_create(
+        workflow=forecast_weather,
+        name=f"{location_name}_weather_forecast_v2",
+        fixed_inputs={"location_query": location_query},
+        **KWARGS,
+    )
 
 
 if __name__ == "__main__":
-    forecast, scores = forecast_weather(
-        location_query="Atlanta, GA US",
-        target_datetime=datetime.now() - timedelta(days=6),
-        genesis_datetime=datetime.now() - timedelta(days=7),
-        n_days_pretraining=7,
-        lookback_window=24 * 3,
-        forecast_window=24 * 3,
-    )
-    print("Forecasts:")
-    for prediction in forecast.predictions:
-        print(prediction)
-    print(f"Scores: {scores}")
+    for location_query in LOCATIONS.values():
+        print(f"location: {location_query}")
+        forecast, scores = forecast_weather(
+            location_query=location_query,
+            target_datetime=datetime.now() - timedelta(days=0),
+            genesis_datetime=datetime.now() - timedelta(days=2),
+            n_days_pretraining=7,
+            lookback_window=24 * 3,
+            forecast_window=24 * 3,
+        )
+        print("Forecasts:")
+        for prediction in forecast.predictions[:3]:
+            print(prediction)
+        print(f"Scores: {scores}\n--------")
