@@ -866,6 +866,8 @@ LOCATIONS = {
     "hyderabad": "Hyderabad, Telangana India",
     "mumbai": "Mumbai, MH India",
     "taipei": "Taipei, Taiwan",
+    "appleton": "Green Bay, WI USA",
+    "dharamshala": "Dharmsala, HP India",
 }
 
 for location_name, location_query in LOCATIONS.items():
