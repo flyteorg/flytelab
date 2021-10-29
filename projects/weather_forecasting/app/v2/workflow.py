@@ -535,13 +535,13 @@ def _update_model(model, scores, training_instance):
     # compute running validation mean absolute error before updating the model
     valid_exp_mae = exp_weighted_mae(abs(y_pred - training_instance.target.air_temp), scores.valid_exp_mae)
 
-    # update the model
+    # update the model 
     model.partial_fit(features, encode_targets(training_instance.target))
 
     # compute running training mean absolute error after the update
     train_exp_mae = exp_weighted_mae(
         abs(model.predict(features).ravel()[1] - training_instance.target.air_temp),
-        scores.valid_exp_mae
+        scores.train_exp_mae
     )
     logging.info(f"updated model: train mae={train_exp_mae}, valid mae={valid_exp_mae}")
     return model, Scores(train_exp_mae, valid_exp_mae)
@@ -806,7 +806,7 @@ def forecast_weather(
         target_datetime=target_datetime,
     )
     latest_model_update = get_latest_model(
-        bounding_box=get_bounding_box(location_query=location_query),
+        bounding_box=bounding_box,
         target_datetime=target_datetime,
         genesis_datetime=genesis_datetime,
         n_days_pretraining=n_days_pretraining,
