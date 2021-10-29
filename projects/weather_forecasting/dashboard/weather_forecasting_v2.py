@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, List
 
+import pandas as pd
 import streamlit as st
 from dataclasses_json import dataclass_json
 
@@ -42,9 +43,24 @@ class Forecast:
 LOGO = "https://docs.flyte.org/en/latest/_static/flyte_circle_gradient_1_4x4.png"
 
 LAUNCH_PLAN_MAP = {
-    "seattle_wa_usa": "seattle_weather_forecast_v2",
-    "atlanta_ga_usa": "atlanta_weather_forecast_v2",
-    "hyderabad_tn_in": "hyderabad_weather_forecast_v2",
+    "seattle": "seattle_weather_forecast_v2",
+    "atlanta": "atlanta_weather_forecast_v2",
+    "hyderabad": "hyderabad_weather_forecast_v2",
+    "mumbai": "mumbai_weather_forecast_v2",
+    "taipei": "taipei_weather_forecast_v2",
+    "appleton": "appleton_weather_forecast_v2",
+    "dharamshala": "dharamshala_weather_forecast_v2",
+}
+
+
+CITY_LABEL_MAP = {
+    "atlanta": "Atlanta, GA USA",
+    "seattle": "Seattle, WA USA",
+    "hyderabad": "Hyderabad, Telangana India",
+    "mumbai": "Mumbai, MH India",
+    "taipei": "Taipei, Taiwan",
+    "appleton": "Green Bay, WI USA",
+    "dharamshala": "Dharamsala, HP India",
 }
 
 
@@ -72,19 +88,19 @@ that was trained using [flyte](https://flyte.org/). For more information
 see the [flytelab weather forecasting project](https://github.com/flyteorg/flytelab/tree/main/projects/weather_forecasting).
 """
 
-city_label_map = {
-    "atlanta_ga_usa": "Atlanta, GA USA",
-    "seattle_wa_usa": "Seattle, WA USA",
-    "hyderabad_ga_usa": "Hyderabad, Telangana India",
-}
-
 selected_city = st.selectbox(
     "Select a City",
-    options=["atlanta_ga_usa", "seattle_wa_usa", "hyderabad_ga_usa"],
-    format_func=lambda x: city_label_map[x]
+    options=[
+        "atlanta",
+        "seattle",
+        "hyderabad",
+        "mumbai",
+        "taipei",
+        "appleton",
+        "dharamshala",
+    ],
+    format_func=lambda x: CITY_LABEL_MAP[x]
 )
-
-selected_city = "atlanta_ga_usa"
 
 executions, _ = remote.client.list_executions_paginated(
     "flytelab",
@@ -107,17 +123,44 @@ with st.expander("Model Metadata"):
     ```
     model_id: {forecast.model_id}
     created_at: {forecast.created_at}
+    training exp-weighted-mae: {scores.train_exp_mae}
+    validation exp-weighted-mae: {scores.valid_exp_mae}
     ```
     """)
 
 st.markdown(f"""
-## {city_label_map[selected_city]}
----
+## {CITY_LABEL_MAP[selected_city]}
+
+Air Temperature and Dew Temperature Forecast (°C)
 """)
 
-for prediction in forecast.predictions[::-1]:
-    if prediction.date.replace(tzinfo=None) < datetime.now():
+air_temp = []
+dew_temp = []
+datetime_index = []
+for p in forecast.predictions:
+    date = p.date.replace(tzinfo=None)
+    if date < pd.Timestamp.now().floor("D").to_pydatetime():
         continue
-    st.markdown(f"### {prediction.date.strftime('%m/%d/%Y %H:%M:%S')}")
-    st.markdown(f"🌡 **Air Temperature**: {prediction.air_temp:0.02f} °C")
-    st.markdown("---")
+    air_temp.append(p.air_temp)
+    dew_temp.append(p.dew_temp)
+    datetime_index.append(date)
+
+data = pd.DataFrame(
+    {"air_temp": air_temp, "dew_temp": dew_temp},
+    index=datetime_index
+)
+
+st.line_chart(data)
+
+st.markdown(f"""
+Predictions powered by [flyte](https://flyte.org/)
+""")
+
+
+# for prediction in forecast.predictions[::-1]:
+#     if prediction.date.replace(tzinfo=None) < datetime.now():
+#         continue
+#     st.markdown(f"### {prediction.date.strftime('%m/%d/%Y %H:%M:%S')}")
+#     st.markdown(f"🌡 **Air Temperature**: {prediction.air_temp:0.02f} °C")
+#     st.markdown("---")
+
