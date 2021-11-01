@@ -155,12 +155,3 @@ st.line_chart(data)
 st.markdown(f"""
 Predictions powered by [flyte](https://flyte.org/)
 """)
-
-
-# for prediction in forecast.predictions[::-1]:
-#     if prediction.date.replace(tzinfo=None) < datetime.now():
-#         continue
-#     st.markdown(f"### {prediction.date.strftime('%m/%d/%Y %H:%M:%S')}")
-#     st.markdown(f"🌡 **Air Temperature**: {prediction.air_temp:0.02f} °C")
-#     st.markdown("---")
-

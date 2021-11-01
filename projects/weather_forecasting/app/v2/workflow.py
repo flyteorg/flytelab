@@ -1,9 +1,7 @@
-import base64
-import math
 import logging
 import os
 import time
-from io import BytesIO, StringIO
+from io import StringIO
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, NamedTuple, Optional
@@ -41,7 +39,7 @@ MAX_RETRIES = 10
 CACHE_VERSION = "2.2"
 
 logger = logging.getLogger(__file__)
-# logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
@@ -143,14 +141,12 @@ class BoundingBox:
     east: str
 
 
-@dataclass_json
-@dataclass
-class ModelUpdate:
-    model_file: str
-    scores: Scores
-    training_instance: TrainingInstance
-
-
+ModelUpdate = NamedTuple(
+    "ModelUpdate",
+    model_file=JoblibSerializedFile,
+    scores=Scores,
+    training_instance=TrainingInstance
+)
 ApiResult = NamedTuple("ApiResult", results=List[dict], count=int)
 WeatherForecast = NamedTuple("WeatherForecast", forecast=Forecast, scores=Scores)
 
@@ -441,17 +437,19 @@ def get_pretraining_instances(
     )
 
 
-def serialize_model(model: BaseEstimator) -> str:
+def serialize_model(model: BaseEstimator) -> JoblibSerializedFile:
     """Convert model object to compressed byte string."""
-    buffer = BytesIO()
-    joblib.dump(model, buffer, compress=True)
-    buffer.seek(0)
-    return base64.b64encode(buffer.getvalue()).decode()
+    out_file = f"/tmp/model.joblib"
+    with open(out_file, "wb") as f:
+        joblib.dump(model, f, compress=True)
+    return JoblibSerializedFile(path=out_file)
 
 
-def deserialize_model(serialized_model: str) -> BaseEstimator:
+def deserialize_model(model_file: JoblibSerializedFile) -> BaseEstimator:
     """Load model object from compressed byte string."""
-    return joblib.load(BytesIO(base64.b64decode(serialized_model.encode())))
+    with open(model_file, "rb") as f:
+        model = joblib.load(f)
+    return model
 
 
 def onehot_encode(x: int, k_values: int):
@@ -548,7 +546,9 @@ def _update_model(model, scores, training_instance):
 
 
 @task
-def pretrain_model(model: str, scores: Scores, training_instances: List[TrainingInstance]) -> ModelUpdate:
+def pretrain_model(
+    model: JoblibSerializedFile, scores: Scores, training_instances: List[TrainingInstance]
+) -> ModelUpdate:
     model = deserialize_model(model)
     for training_instance in training_instances:
         model, scores = _update_model(model, scores, training_instance)
@@ -623,12 +623,11 @@ def get_training_instance(bounding_box: BoundingBox, start: datetime, end: datet
     limits=limit_resources,
 )
 def update_model(
-    prev_model_update: ModelUpdate,
+    prev_model: JoblibSerializedFile,
+    prev_scores: Scores,
     training_instance: TrainingInstance,
 ) -> ModelUpdate:
-    model, scores = _update_model(
-        deserialize_model(prev_model_update.model_file), prev_model_update.scores, training_instance
-    )
+    model, scores = _update_model(deserialize_model(prev_model), prev_scores, training_instance)
     return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
 
 
@@ -643,62 +642,40 @@ def previous_timestep(dt: datetime) -> datetime:
     requests=request_resources,
     limits=limit_resources,
 )
-def get_updated_model_recursively(
-    bounding_box: BoundingBox,
-    target_datetime: datetime,
-    genesis_datetime: datetime,
-    n_days_pretraining: int,
-    lookback_window: int,
-)  -> ModelUpdate:
-    prev_model_update = get_latest_model(
-        bounding_box=bounding_box,
-        target_datetime=previous_timestep(dt=target_datetime),
-        genesis_datetime=genesis_datetime,
-        n_days_pretraining=n_days_pretraining,
-        lookback_window=lookback_window,
-    )
-    # TODO: if target_datetime is more than one timestep greater than prev_model_update,
-    # then do multi-instance update
-    training_instance = get_training_instance(
-        bounding_box=bounding_box,
-        start=target_datetime - timedelta(hours=lookback_window),
-        end=target_datetime,
-    )
-    return update_model(
-        prev_model_update=prev_model_update,
-        training_instance=training_instance,
-    )
-
-@workflow
 def get_latest_model(
     bounding_box: BoundingBox,
     target_datetime: datetime,
     genesis_datetime: datetime,
     n_days_pretraining: int,
     lookback_window: int,
-) -> ModelUpdate:
-    return (
-        conditional("init_model")
-        .if_(genesis_datetime == target_datetime)
-        .then(
-            init_model(
-                bounding_box=bounding_box,
-                genesis_datetime=genesis_datetime,
-                n_days_pretraining=n_days_pretraining,
-                lookback_window=lookback_window,
-            )
+)  -> ModelUpdate:
+    if genesis_datetime == target_datetime:
+        return init_model(
+            bounding_box=bounding_box,
+            genesis_datetime=genesis_datetime,
+            n_days_pretraining=n_days_pretraining,
+            lookback_window=lookback_window,
         )
-        .else_()
-        .then(
-            get_updated_model_recursively(
-                bounding_box=bounding_box,
-                target_datetime=target_datetime,
-                genesis_datetime=genesis_datetime,
-                n_days_pretraining=n_days_pretraining,
-                lookback_window=lookback_window,
-            )
+    else:
+        prev_model, prev_scores, _ = get_latest_model(
+            bounding_box=bounding_box,
+            target_datetime=previous_timestep(dt=target_datetime),
+            genesis_datetime=genesis_datetime,
+            n_days_pretraining=n_days_pretraining,
+            lookback_window=lookback_window,
         )
-    )
+        # TODO: if target_datetime is more than one timestep greater than prev_model_update,
+        # then do multi-instance update
+        training_instance = get_training_instance(
+            bounding_box=bounding_box,
+            start=target_datetime - timedelta(hours=lookback_window),
+            end=target_datetime,
+        )
+        return update_model(
+            prev_model=prev_model,
+            prev_scores=prev_scores,
+            training_instance=training_instance,
+        )
 
 
 @task(
@@ -706,12 +683,12 @@ def get_latest_model(
     limits=limit_resources,
 )
 def get_forecast(
-    latest_model_update: ModelUpdate,
+    latest_model: JoblibSerializedFile,
+    latest_training_instance: TrainingInstance,
     target_datetime: datetime,
     forecast_window: int,
 ) -> Forecast:
-    model = deserialize_model(latest_model_update.model_file)
-    latest_training_instance = latest_model_update.training_instance
+    model = deserialize_model(latest_model)
 
     predictions = []
     features = latest_training_instance.features
@@ -785,11 +762,6 @@ def normalize_datetimes(
     return genesis_datetime, target_datetime
 
 
-@task
-def get_scores(latest_model_update: ModelUpdate) -> Scores:
-    return latest_model_update.scores
-
-
 @workflow
 def forecast_weather(
     location_query: str,
@@ -805,7 +777,7 @@ def forecast_weather(
         genesis_datetime=genesis_datetime,
         target_datetime=target_datetime,
     )
-    latest_model_update = get_latest_model(
+    latest_model, latest_scores, latest_training_instance = get_latest_model(
         bounding_box=bounding_box,
         target_datetime=target_datetime,
         genesis_datetime=genesis_datetime,
@@ -813,18 +785,19 @@ def forecast_weather(
         lookback_window=lookback_window,
     )
     forecast = get_forecast(
-        latest_model_update=latest_model_update,
+        latest_model=latest_model,
+        latest_training_instance=latest_training_instance,
         target_datetime=target_datetime,
         forecast_window=forecast_window,
     )
-    return forecast, get_scores(latest_model_update=latest_model_update)
+    return forecast, latest_scores
 
 
 # by default, set target and genesis datetime launchplan to previous day.
-NOW = (pd.Timestamp.now().floor("H") - pd.Timedelta(days=1)).to_pydatetime()
+DEFAULT_GENESIS_TIME = (pd.Timestamp.now().floor("H") - pd.Timedelta(days=3)).to_pydatetime()
 DEFAULT_INPUTS = {
-    "target_datetime": NOW,
-    "genesis_datetime": NOW,
+    "target_datetime": DEFAULT_GENESIS_TIME,
+    "genesis_datetime": DEFAULT_GENESIS_TIME,
     "n_days_pretraining": 14,
     "lookback_window": 24 * 3,  # 3-day lookback
     "forecast_window": 24 * 3,  # 3-day forecast
@@ -868,6 +841,7 @@ LOCATIONS = {
     "taipei": "Taipei, Taiwan",
     "appleton": "Green Bay, WI USA",
     "dharamshala": "Dharmsala, HP India",
+    "fremont": "Fremont, CA USA",
 }
 
 for location_name, location_query in LOCATIONS.items():
@@ -884,8 +858,8 @@ if __name__ == "__main__":
         print(f"location: {location_query}")
         forecast, scores = forecast_weather(
             location_query=location_query,
-            target_datetime=datetime.now() - timedelta(days=0),
-            genesis_datetime=datetime.now() - timedelta(days=2),
+            target_datetime=datetime.now() - timedelta(days=3),
+            genesis_datetime=datetime.now() - timedelta(days=3),
             n_days_pretraining=7,
             lookback_window=24 * 3,
             forecast_window=24 * 3,

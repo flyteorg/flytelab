@@ -48,10 +48,8 @@ eval $(sed 's/^/export /g' env.txt)
 ### Register Workflows
 
 ```bash
-INSECURE=true \
-FLYTE_HOST=localhost:30081 \
-FLYTE_CONFIG=.flyte/sandbox.config \
-OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
+FLYTECTL_CONFIG=~/.flyte/config.yaml \
+SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make register
 ```
@@ -61,14 +59,8 @@ make register
 In case you've only changed user code and not system-level dependencies:
 
 ```bash
-FLYTE_AWS_ENDPOINT=http://localhost:30084/ \
-FLYTE_AWS_ACCESS_KEY_ID=minio \
-FLYTE_AWS_SECRET_ACCESS_KEY=miniostorage \
-INSECURE=true \
-FLYTE_HOST=localhost:30081 \
-FLYTE_CONFIG=.flyte/sandbox.config \
-OUTPUT_DATA_PREFIX=s3://my-s3-bucket \
-ADDL_DISTRIBUTION_DIR=s3://my-s3-bucket/cookbook \
+FLYTECTL_CONFIG=~/.flyte/config.yaml \
+SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
