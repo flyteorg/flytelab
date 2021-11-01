@@ -6,7 +6,7 @@ else
     version=$1
 fi
 
-locations="atlanta seattle hyderabad mumbai taipei appleton dharamshala"
+locations="atlanta seattle hyderabad mumbai taipei appleton dharamshala fremont"
 
 
 activate () {
