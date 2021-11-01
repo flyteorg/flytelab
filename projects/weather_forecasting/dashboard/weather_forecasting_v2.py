@@ -50,6 +50,7 @@ LAUNCH_PLAN_MAP = {
     "taipei": "taipei_weather_forecast_v2",
     "appleton": "appleton_weather_forecast_v2",
     "dharamshala": "dharamshala_weather_forecast_v2",
+    "fremont": "fremont_weather_forecast_v2",
 }
 
 
@@ -61,6 +62,7 @@ CITY_LABEL_MAP = {
     "taipei": "Taipei, Taiwan",
     "appleton": "Green Bay, WI USA",
     "dharamshala": "Dharamsala, HP India",
+    "fremont": "Fremont, CA USA",
 }
 
 
