@@ -389,17 +389,17 @@ def round_datetime(dt: datetime, ceil: bool) -> datetime:
 
 
 @task(requests=request_resources, limits=limit_resources)
-def instances_from_pretraining_data(
+def instances_from_daterange(
     training_data: TrainingSchema,
-    pretraining_start_date: datetime,
-    genesis_datetime: datetime,
+    start: datetime,
+    end: datetime,
     lookback_window: int,
 ) -> List[TrainingInstance]:
     training_data: pd.Dataframe = training_data.open().all()
     training_instances = []
-    diff_in_hours = (genesis_datetime - pretraining_start_date).days * 24
+    diff_in_hours = (end - start).days * 24
     for i in range(1, diff_in_hours + 1):
-        current_datetime = pretraining_start_date + timedelta(hours=i)
+        current_datetime = start + timedelta(hours=i)
         training_instance = _prepare_training_instance(
             training_data=training_data,
             start=current_datetime - timedelta(hours=lookback_window),
@@ -413,26 +413,23 @@ def instances_from_pretraining_data(
     requests=request_resources,
     limits=limit_resources,
 )
-def get_pretraining_instances(
+def get_training_instances(
     bounding_box: BoundingBox,
-    genesis_datetime: datetime,
-    n_days_pretraining: int,
+    start: datetime,
+    end: datetime,
     lookback_window: int,
 ) -> List[TrainingInstance]:
-
-    genesis_datetime = genesis_datetime.replace(tzinfo=None)
-    pretraining_start_date = genesis_datetime - timedelta(days=n_days_pretraining)
     training_data = get_weather_data(
         bounding_box=bounding_box,
-        start=round_datetime(dt=pretraining_start_date, ceil=False),
-        end=round_datetime(dt=genesis_datetime, ceil=True),
+        start=round_datetime(dt=start, ceil=False),
+        end=round_datetime(dt=end, ceil=True),
         # Make sure the processed weather data cache is invalidated every hour.
         fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
     )
-    return instances_from_pretraining_data(
+    return instances_from_daterange(
         training_data=training_data,
-        pretraining_start_date=pretraining_start_date,
-        genesis_datetime=genesis_datetime,
+        start=start,
+        end=end,
         lookback_window=lookback_window,
     )
 
@@ -546,7 +543,7 @@ def _update_model(model, scores, training_instance):
 
 
 @task
-def pretrain_model(
+def update_model(
     model: JoblibSerializedFile, scores: Scores, training_instances: List[TrainingInstance]
 ) -> ModelUpdate:
     model = deserialize_model(model)
@@ -579,13 +576,15 @@ def init_model(
             average=True,
         )
     )
-    return pretrain_model(
+    end = genesis_datetime.replace(tzinfo=None)
+    start = genesis_datetime - timedelta(days=n_days_pretraining)
+    return update_model(
         model=serialize_model(model),
         scores=Scores(),
-        training_instances=get_pretraining_instances(
+        training_instances=get_training_instances(
             bounding_box=bounding_box,
-            genesis_datetime=genesis_datetime,
-            n_days_pretraining=n_days_pretraining,
+            start=start,
+            end=end,
             lookback_window=lookback_window,
         ),
     )
@@ -616,24 +615,15 @@ def get_training_instance(bounding_box: BoundingBox, start: datetime, end: datet
     )
 
 
-@task(
-    cache=True,
-    cache_version=CACHE_VERSION,
-    requests=request_resources,
-    limits=limit_resources,
-)
-def update_model(
-    prev_model: JoblibSerializedFile,
-    prev_scores: Scores,
-    training_instance: TrainingInstance,
-) -> ModelUpdate:
-    model, scores = _update_model(deserialize_model(prev_model), prev_scores, training_instance)
-    return ModelUpdate(model_file=serialize_model(model), scores=scores, training_instance=training_instance)
-
-
 @task
-def previous_timestep(dt: datetime) -> datetime:
-    return dt - timedelta(seconds=60 * 60)
+def previous_target_datetime(target_datetime: datetime, genesis_datetime: datetime) -> datetime:
+    """Get the previous target datetime, rounded down to days since genesis datetime.
+    
+    This means that the model will only update every day.
+    """
+    prev_datetime = target_datetime - timedelta(days=1)
+    diff = prev_datetime - genesis_datetime
+    return genesis_datetime + timedelta(days=diff.days)
 
 
 @dynamic(
@@ -649,7 +639,7 @@ def get_latest_model(
     n_days_pretraining: int,
     lookback_window: int,
 )  -> ModelUpdate:
-    if genesis_datetime == target_datetime:
+    if target_datetime <= genesis_datetime:
         return init_model(
             bounding_box=bounding_box,
             genesis_datetime=genesis_datetime,
@@ -657,24 +647,25 @@ def get_latest_model(
             lookback_window=lookback_window,
         )
     else:
-        prev_model, prev_scores, _ = get_latest_model(
+        prev_model, prev_scores, prev_training_instance = get_latest_model(
             bounding_box=bounding_box,
-            target_datetime=previous_timestep(dt=target_datetime),
+            target_datetime=previous_target_datetime(
+                target_datetime=target_datetime,
+                genesis_datetime=genesis_datetime,
+            ),
             genesis_datetime=genesis_datetime,
             n_days_pretraining=n_days_pretraining,
             lookback_window=lookback_window,
         )
-        # TODO: if target_datetime is more than one timestep greater than prev_model_update,
-        # then do multi-instance update
-        training_instance = get_training_instance(
-            bounding_box=bounding_box,
-            start=target_datetime - timedelta(hours=lookback_window),
-            end=target_datetime,
-        )
         return update_model(
-            prev_model=prev_model,
-            prev_scores=prev_scores,
-            training_instance=training_instance,
+            model=prev_model,
+            scores=prev_scores,
+            training_instances=get_training_instances(
+                bounding_box=bounding_box,
+                start=prev_training_instance.target_datetime,
+                end=target_datetime,
+                lookback_window=lookback_window,
+            ),
         )
 
 
@@ -772,14 +763,14 @@ def forecast_weather(
     forecast_window: int,
 ) -> WeatherForecast:
     bounding_box = get_bounding_box(location_query=location_query)
-    genesis_datetime, target_datetime = normalize_datetimes(
+    genesis_datetime, latest_available_target_datetime = normalize_datetimes(
         bounding_box=bounding_box,
         genesis_datetime=genesis_datetime,
         target_datetime=target_datetime,
     )
     latest_model, latest_scores, latest_training_instance = get_latest_model(
         bounding_box=bounding_box,
-        target_datetime=target_datetime,
+        target_datetime=latest_available_target_datetime,
         genesis_datetime=genesis_datetime,
         n_days_pretraining=n_days_pretraining,
         lookback_window=lookback_window,
@@ -794,7 +785,7 @@ def forecast_weather(
 
 
 # by default, set target and genesis datetime launchplan to three days ago.
-DEFAULT_GENESIS_TIME = (pd.Timestamp.now().floor("H") - pd.Timedelta(days=3)).to_pydatetime()
+DEFAULT_GENESIS_TIME = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=3)).to_pydatetime()
 DEFAULT_INPUTS = {
     "target_datetime": DEFAULT_GENESIS_TIME,
     "genesis_datetime": DEFAULT_GENESIS_TIME,
@@ -854,17 +845,21 @@ for location_name, location_query in LOCATIONS.items():
 
 
 if __name__ == "__main__":
+    N_DAYS = 7
     for location_query in LOCATIONS.values():
         print(f"location: {location_query}")
-        forecast, scores = forecast_weather(
-            location_query=location_query,
-            target_datetime=datetime.now() - timedelta(days=3),
-            genesis_datetime=datetime.now() - timedelta(days=3),
-            n_days_pretraining=7,
-            lookback_window=24 * 3,
-            forecast_window=24 * 3,
-        )
-        print("Forecasts:")
-        for prediction in forecast.predictions[:3]:
-            print(prediction)
-        print(f"Scores: {scores}\n--------")
+        for i in reversed(range(0, N_DAYS + 1)):
+            target_datetime = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=i)).to_pydatetime()
+            forecast, scores = forecast_weather(
+                location_query=location_query,
+                target_datetime=target_datetime,
+                genesis_datetime=(pd.Timestamp.now().floor("d") - pd.Timedelta(days=N_DAYS)).to_pydatetime(),
+                n_days_pretraining=7,
+                lookback_window=24 * 3,
+                forecast_window=24 * 3,
+            )
+            print(f"Target Datetime: {target_datetime}")
+            print("Forecasts:")
+            for prediction in forecast.predictions[-5:]:
+                print(prediction)
+            print(f"Scores: {scores}\n--------")
