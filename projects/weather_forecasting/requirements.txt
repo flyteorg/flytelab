@@ -1,5 +1,5 @@
 -e .
-flytekit
+flytekit==0.24.0b0
 flytekitplugins-pandera
 flyteidl
 geopy
