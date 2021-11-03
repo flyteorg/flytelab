@@ -100,6 +100,7 @@ selected_city = st.selectbox(
         "taipei",
         "appleton",
         "dharamshala",
+        "fremont",
     ],
     format_func=lambda x: CITY_LABEL_MAP[x]
 )
