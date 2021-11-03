@@ -604,6 +604,11 @@ def get_previous_target_datetime(target_datetime: datetime, genesis_datetime: da
     return prev_datetime
 
 
+@task
+def get_training_instance_datetime(training_instance: TrainingInstance) -> datetime:
+    return training_instance.target_datetime
+
+
 @dynamic(
     cache=True,
     cache_version=CACHE_VERSION,
@@ -644,7 +649,7 @@ def get_latest_model(
             scores=prev_scores,
             training_instances=get_training_instances(
                 bounding_box=bounding_box,
-                start=prev_training_instance.target_datetime,
+                start=get_training_instance_datetime(training_instance=prev_training_instance),
                 end=target_datetime,
                 lookback_window=lookback_window,
             ),
