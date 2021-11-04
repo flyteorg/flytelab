@@ -337,7 +337,8 @@ def get_weather_data(
         f"getting global hourly data for query: {bounding_box} between {start} and {end}, fetch date: {fetch_date}"
     )
     responses = get_global_hourly_data_responses(bounding_box=bounding_box, start=start, end=end)
-    data = process_raw_training_data(data=get_raw_data(responses=responses))
+    raw_data = get_raw_data(responses=responses)
+    data = process_raw_training_data(data=raw_data)
     training_data = TrainingSchema()
     training_data.open().write(data)
     return training_data
@@ -712,7 +713,7 @@ def round_datetime_to_hour(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
 
 
-@task(
+@dynamic(
     requests=request_resources,
     limits=limit_resources,
 )
@@ -724,13 +725,14 @@ def normalize_datetimes(
     """Get the date of the latest available training data."""
     genesis_datetime = round_datetime_to_hour(genesis_datetime)
     target_datetime = round_datetime_to_hour(target_datetime)
-    [response, *_], _ = call_noaa_api(
+    training_data = get_weather_data(
         bounding_box=bounding_box,
-        start=datetime(genesis_datetime.year, 1, 1, 0, tzinfo=None),
-        end=target_datetime,
-        responses=[]
-    )
-    latest_available = pd.to_datetime(response["endDate"]).floor("H").to_pydatetime()
+        start=round_datetime(dt=genesis_datetime, ceil=False),
+        end=round_datetime(dt=target_datetime, ceil=True),
+        # Make sure the processed weather data cache is invalidated every hour.
+        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+    ).open().all()
+    latest_available = training_data.index[-1].to_pydatetime()
     target_datetime = min(target_datetime, latest_available)
     if target_datetime < genesis_datetime:
         genesis_datetime = latest_available
