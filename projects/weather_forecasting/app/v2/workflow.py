@@ -142,6 +142,7 @@ class BoundingBox:
     east: str
 
 
+NormalizedDatetimes = NamedTuple("NormalizedDatetimes", genesis_datetime=datetime, target_datetime=datetime)
 ModelUpdate = NamedTuple(
     "ModelUpdate",
     model_file=JoblibSerializedFile,
@@ -708,6 +709,7 @@ def get_forecast(
     return Forecast(created_at=target_datetime, model_id=joblib.hash(model), predictions=predictions)
 
 
+@task
 def round_datetime_to_hour(dt: datetime) -> datetime:
     """Round date-times to the nearest hour."""
     return datetime(dt.year, dt.month, dt.day, hour=dt.hour, tzinfo=None)
@@ -718,21 +720,14 @@ def round_datetime_to_hour(dt: datetime) -> datetime:
     limits=limit_resources,
 )
 def normalize_datetimes(
-    bounding_box: BoundingBox,
     genesis_datetime: datetime,
     target_datetime: datetime,
-) -> NamedTuple("NormalizedDatetimes", genesis_datetime=datetime, target_datetime=datetime):
+    training_data: TrainingSchema,
+) -> NormalizedDatetimes:
     """Get the date of the latest available training data."""
-    genesis_datetime = round_datetime_to_hour(genesis_datetime)
-    target_datetime = round_datetime_to_hour(target_datetime)
-    training_data = get_weather_data(
-        bounding_box=bounding_box,
-        start=round_datetime(dt=genesis_datetime, ceil=False),
-        end=round_datetime(dt=target_datetime, ceil=True),
-        # Make sure the processed weather data cache is invalidated every hour.
-        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
-    ).open().all()
-    latest_available = training_data.index[-1].to_pydatetime()
+    genesis_datetime = genesis_datetime.replace(tzinfo=None)
+    target_datetime = target_datetime.replace(tzinfo=None)
+    latest_available = training_data.open().all().index[-1].to_pydatetime()
     target_datetime = min(target_datetime, latest_available)
     if target_datetime < genesis_datetime:
         genesis_datetime = latest_available
@@ -750,9 +745,15 @@ def forecast_weather(
 ) -> WeatherForecast:
     bounding_box = get_bounding_box(location_query=location_query)
     genesis_datetime, latest_available_target_datetime = normalize_datetimes(
-        bounding_box=bounding_box,
         genesis_datetime=genesis_datetime,
         target_datetime=target_datetime,
+        training_data=get_weather_data(
+            bounding_box=bounding_box,
+            start=round_datetime(dt=round_datetime_to_hour(dt=genesis_datetime), ceil=False),
+            end=round_datetime(dt=round_datetime_to_hour(dt=target_datetime), ceil=True),
+            # Make sure the processed weather data cache is invalidated every hour.
+            fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+        ),
     )
     latest_model, latest_scores, latest_training_instance = get_latest_model(
         bounding_box=bounding_box,
