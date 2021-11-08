@@ -412,6 +412,11 @@ def instances_from_daterange(
     return training_instances
 
 
+@task
+def datetime_now() -> datetime:
+    return pd.Timestamp.now().floor("H").to_pydatetime()
+
+
 @dynamic(
     requests=request_resources,
     limits=limit_resources,
@@ -427,7 +432,7 @@ def get_training_instances(
         start=round_datetime(dt=start, ceil=False),
         end=round_datetime(dt=end, ceil=True),
         # Make sure the processed weather data cache is invalidated every hour.
-        fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+        fetch_date=datetime_now(),
     )
     return instances_from_daterange(
         training_data=training_data,
@@ -752,7 +757,7 @@ def forecast_weather(
             start=round_datetime(dt=round_datetime_to_hour(dt=genesis_datetime), ceil=False),
             end=round_datetime(dt=round_datetime_to_hour(dt=target_datetime), ceil=True),
             # Make sure the processed weather data cache is invalidated every hour.
-            fetch_date=pd.Timestamp.now().floor("H").to_pydatetime(),
+            fetch_date=datetime_now(),
         ),
     )
     latest_model, latest_scores, latest_training_instance = get_latest_model(
