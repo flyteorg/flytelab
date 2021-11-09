@@ -1,4 +1,4 @@
-# Development Notes
+# Deployment Instructions
 
 This page contains notes regarding how to use Flyte in an end-to-end ML
 system.
@@ -6,6 +6,8 @@ system.
 ## Project Setup
 
 ### Sandbox
+
+<!-- TODO update project registration and resource updating to use flytectl -->
 
 ```bash
 flyte-cli register-project -h localhost:30081 -i -p flytelab -n flytelab -d 'ML projects using Flyte'
@@ -21,6 +23,8 @@ flyte-cli -i \
 ```
 
 ### Remote
+
+<!-- TODO update project registration and resource updating to use flytectl -->
 
 ```bash
 flyte-cli register-project -h demo.nuclyde.io -p flytelab -n flytelab -d 'ML projects using Flyte'

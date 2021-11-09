@@ -1,5 +1,7 @@
 # Weather Forecasting
 
+[![streamlit](http://img.shields.io/badge/streamlit-app-red.svg?style=flat)](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting_v2.py)
+
 The purpose of this project is to train a model to perform weather forecasting
 using [noaa.gov](https://www.ncei.noaa.gov/) data.
 
@@ -41,25 +43,17 @@ There are several options for training the MTP model:
 Online model that updates its parameters daily based on fixed set of historical data
 temperature data (and potentially other related data). For example, for a given day `t`:
 - 2-week look back from `t`
-- data on the same day as `t` from the last `n` years
 
-The model would estimate the function $x^t = f(x^{t - 1}, ..., x^{t - 14}, x^{t - 365 \times 1}, ... x^{t - 365 \times n})$, where $x_t$ is the mean temperature for a particular day $t$.
+The model would estimate the function $x^t = f(x^{t - 1}, ..., x^{t - 14}, x^{t - 365 \times 1}, where $x_t$ is the mean temperature for a particular day $t$.
 
 ```mermaid
 graph TB
 
-    subgraph "look-back (week)"
+    subgraph "look-back"
     x1["x (t - 1)"]
     x2["x (t - 2)"]
     xdot["..."]
     x14["x (t - 14)"]
-    end
-
-    subgraph "look-back (year)"
-    x365["x (t - 365)"]
-    x365_2["x (t - 365 * 2)"]
-    x365_dot["..."]
-    x365_n["x (t - 365 * n)"]
     end
 
     x["x (t)"]
@@ -67,10 +61,6 @@ graph TB
     x2 --> x
     xdot --> x
     x14 --> x
-    x365 --> x
-    x365_2 --> x
-    x365_dot --> x
-    x365_n --> x
 ```
 
 #### Offline Training
@@ -109,7 +99,7 @@ for today in days:
 
 ### Model Architecture
 
-For the prototype, we'll start with a linear regression model using `statsmodel`, which is
+For the prototype, we'll start with an SGD regression model using `sklearn`, which is
 able to express a confidence interval of its predictions.
 
 ## Extensions
@@ -121,6 +111,18 @@ After a prototype is up and running, here are some extensions to make a more sop
 - experiment with other model architectures, like ensembles, to improve performance
 - for locations that don't have weather data, interpolate predictions for neighboring areas
 
+## Repo Structure
+
+- `Dockerfile`: dockerfile for building the image associated with the weather forecasting app 
+- `.flyte`: directory containing flyte .ini config files
+- `app`: this directory contains the flyte workflows
+  - `v1`: unmaintained version of the weather forecasting app
+  - `v2`: latest veresion of the weather forecasting app
+- `dashboard`: source for the streamlit app
+- `flytelab`: python package for weather forecasting-specific functions. **NOTE:** Currently the source code
+  in this package is only used by the unmaintained `v1` weather forecasting app. In the future functionality from
+  the `v2/workflow.py` script might be refactored into a the `flytelab.weather_forecasting` package.
+- `scripts`: contains bash utility scripts for activating/archiving launch plans
 
 ## Setup
 
@@ -129,7 +131,6 @@ $ make venv
 $ source ./.venv/weather-forecasting/bin/activate
 $ make deps
 $ make env.txt
-$ pip install -e .
 ```
 
 Replace `<API_KEY>` with an [official API key](https://www.ncdc.noaa.gov/cdo-web/token).
@@ -143,19 +144,24 @@ Export environment variables
 $ eval $(sed 's/^/export /g' env.txt)
 ```
 
-Get data
+Run the workflow locally
 ```
-python -m flytelab.weather_forecasting.trainer
+python app/v2/workflow.py
 ```
 
+
+## Deployment
+
+[DEPLOYMENT.md](DEPLOYMENT.md) contains instructions for how to deploy the weather forecasting workflow
+to a local or remote sandbox.
 
 ## Streamlit App
 
-To run locally:
+To run the app locally, but connecting to https://demo.nuclyde.io/console as the backend:
 
 ```
 pip install streamlit
-export FLYTE_CREDENTIALS_CLIENT_SECRET=<secret>
+export FLYTE_CREDENTIALS_CLIENT_SECRET=<secret>  # replace with client secret
 export FLYTE_CREDENTIALS_CLIENT_ID=flytepropeller
 export FLYTE_CREDENTIALS_AUTH_MODE=basic
 export FLYTE_CREDENTIALS_AUTHORIZATION_METADATA_KEY=flyte-authorization
@@ -163,6 +169,7 @@ export FLYTE_CREDENTIALS_OAUTH_SCOPES=all
 streamlit run dashboard/weather_forecasting_v2.py
 ```
 
+[Live Demo](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting_v2.py)
 
 ## Resources
 

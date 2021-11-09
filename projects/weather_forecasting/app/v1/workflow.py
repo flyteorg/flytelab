@@ -1,3 +1,7 @@
+"""
+NOTE: This version of the weather forecasting workflow is no longer maintained
+"""
+
 import copy
 import itertools
 import joblib
