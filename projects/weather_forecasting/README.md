@@ -41,10 +41,9 @@ There are several options for training the MTP model:
 #### Online Training
 
 Online model that updates its parameters daily based on fixed set of historical data
-temperature data (and potentially other related data). For example, for a given day `t`:
-- 2-week look back from `t`
+temperature data (and potentially other related data).
 
-The model would estimate the function $x^t = f(x^{t - 1}, ..., x^{t - 14}, x^{t - 365 \times 1})$, where $x_t$ is the mean temperature for a particular day $t$.
+The model would estimate the function $x^t = f(x^{t - 1}, ..., x^{t - n}, x^{t - 365 \times 1})$, where $x_t$ is the mean temperature for a particular day $t$.
 
 ```mermaid
 graph TB
