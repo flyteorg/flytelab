@@ -1,3 +1,7 @@
+"""
+.. _weather_forecasting:
+
+"""
 import logging
 import math
 import os
