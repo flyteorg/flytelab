@@ -1,6 +1,5 @@
 flytekit==0.30.0
 flyteidl
-streamlit
 geopy
 joblib
 pandas
