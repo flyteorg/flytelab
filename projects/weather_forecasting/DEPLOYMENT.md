@@ -52,7 +52,7 @@ eval $(sed 's/^/export /g' env.txt)
 ### Register Workflows
 
 ```bash
-FLYTECTL_CONFIG=~/.flyte/config.yaml \
+FLYTECTL_CONFIG=.flyte/sandbox-config.yaml \
 SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make register
@@ -63,7 +63,7 @@ make register
 In case you've only changed user code and not system-level dependencies:
 
 ```bash
-FLYTECTL_CONFIG=~/.flyte/config.yaml \
+FLYTECTL_CONFIG=.flyte/sandbox-config.yaml \
 SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
@@ -98,7 +98,7 @@ logger:
 ### Register Workflows
 
 ```bash
-FLYTECTL_CONFIG=~/.flyte/nuclydedemo-config.yaml \
+FLYTECTL_CONFIG=.flyte/remote-config.yaml \
 SERVICE_ACCOUNT=demo \
 REGISTRY=ghcr.io/flyteorg \
 make register
@@ -107,7 +107,7 @@ make register
 ### Fast Registering New Code
 
 ```bash
-FLYTECTL_CONFIG=~/.flyte/nuclydedemo-config.yaml \
+FLYTECTL_CONFIG=.flyte/remote-config.yaml \
 SERVICE_ACCOUNT=demo \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
@@ -118,7 +118,7 @@ make fast_register
 List launch plan versions
 
 ```bash
-flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+flytectl -c .flyte/remote-config.yaml \
     get launchplan \
     -p flytelab \
     -d development \
@@ -130,7 +130,7 @@ flytectl -c ~/.flyte/nuclydedemo-config.yaml \
 Get the `version` of the launch plan you want to activate, then:
 
 ```bash
-flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+flytectl -c .flyte/remote-config.yaml \
     update launchplan \
     -p flytelab \
     -d development \
@@ -142,7 +142,7 @@ flytectl -c ~/.flyte/nuclydedemo-config.yaml \
 To deactivate:
 
 ```bash
-flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+flytectl -c .flyte/remote-config.yaml \
     update launchplan \
     -p flytelab \
     -d development \

@@ -98,7 +98,7 @@ serialize:
 	echo ${CURDIR}
 	rm -rf ${CURDIR}/_pb_output || true
 	mkdir ${CURDIR}/_pb_output || true
-	pyflyte -c flyte.config --pkgs app.v2 package \
+	pyflyte -c flyte.config --pkgs app package \
 		--force \
 		--in-container-source-path /root \
 		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
@@ -119,7 +119,7 @@ fast_serialize:
 	echo ${CURDIR}
 	mkdir ${CURDIR}/_pb_output || true
 	rm ${CURDIR}/_pb_output/* || true
-	pyflyte -c flyte.config --pkgs app.v2 package \
+	pyflyte -c flyte.config --pkgs app package \
 		--force \
 		--in-container-source-path /root \
 		--fast \
