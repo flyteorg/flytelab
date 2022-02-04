@@ -1,5 +1,5 @@
-flytekit==0.24.0
-flytekitplugins-pandera==0.24.0
+flytekit==0.30.0
+flytekitplugins-pandera==0.30.0
 flyteidl
 geopy
 joblib

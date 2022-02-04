@@ -822,7 +822,7 @@ for location_name, location_query in LOCATIONS.items():
     LaunchPlan.get_or_create(
         workflow=forecast_weather,
         name=f"{location_name}_weather_forecast_v2",
-        default_inputs={"location_query": location_query, **DEFAULT_INPUTS},
+        fixed_inputs={"location_query": location_query, **DEFAULT_INPUTS},
         # fixed_inputs={"location_query": location_query},
         **KWARGS,
     )
