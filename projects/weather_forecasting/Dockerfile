@@ -29,8 +29,6 @@ ENV PATH="${VENV}/bin:$PATH"
 
 # Install Python dependencies
 COPY requirements.txt /root
-COPY flytelab /root/flytelab
-COPY setup.py /root
 RUN pip install -r /root/requirements.txt
 
 COPY app /root/app

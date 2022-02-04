@@ -145,7 +145,7 @@ $ eval $(sed 's/^/export /g' env.txt)
 
 Run the workflow locally
 ```
-python app/v2/workflow.py
+python app/workflow.py
 ```
 
 
