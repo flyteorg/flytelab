@@ -332,7 +332,7 @@ def get_weather_data(
     )
 
 
-def _prepare_training_instance(
+def prepare_training_instance(
     training_data: DataFrame[GlobalHourlyData], start: datetime, end: datetime
 ) -> TrainingInstance:
     logging.debug(f"get training instance: {start} - {end}")
@@ -369,15 +369,6 @@ def _prepare_training_instance(
     )
 
 
-@task(requests=request_resources, limits=limit_resources)
-def prepare_training_instance(
-    training_data: DataFrame[GlobalHourlyData],
-    start: datetime,
-    end: datetime,
-) -> TrainingInstance:
-    return _prepare_training_instance(training_data, start, end)
-
-
 @task
 def round_datetime(dt: datetime, ceil: bool) -> datetime:
     """Round date-times to the nearest hour."""
@@ -395,7 +386,7 @@ def instances_from_daterange(
     diff_in_hours = int((end - start).total_seconds() / 60 / 60)
     for i in range(1, diff_in_hours + 1):
         current_datetime = start + timedelta(hours=i)
-        training_instance = _prepare_training_instance(
+        training_instance = prepare_training_instance(
             training_data=training_data,
             start=current_datetime - timedelta(hours=lookback_window),
             end=current_datetime,
@@ -421,7 +412,8 @@ def get_training_instances(
 ) -> List[TrainingInstance]:
     training_data = get_weather_data(
         bounding_box=bounding_box,
-        start=round_datetime(dt=start, ceil=False),
+        # make sure all training data is gathered from start - lookback_window
+        start=round_datetime(dt=start - timedelta(days=lookback_window), ceil=False),
         end=round_datetime(dt=end, ceil=True),
         # Make sure the processed weather data cache is invalidated every hour.
         fetch_date=datetime_now(),
@@ -477,7 +469,6 @@ def encode_datetime(dt: datetime):
 def encode_features(features: Features):
     """Mean-center and scale by standard-deviation."""
     # only encode the date of the most recent data point
-    # TODO: add temperature differences as a feature
     air_temp = minmax_scaler(np.array(features.air_temp_features), -100, 100)
     dew_temp = minmax_scaler(np.array(features.dew_temp_features), -100, 100)
 
@@ -772,7 +763,7 @@ def forecast_weather(
 DEFAULT_GENESIS_TIME = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=3)).to_pydatetime()
 DEFAULT_INPUTS = {
     "genesis_datetime": DEFAULT_GENESIS_TIME,
-    "n_days_pretraining": 30,  # one month pre training
+    "n_days_pretraining": 180,  # six months pre-training
     "lookback_window": 24 * 3,  # 3-day lookback
     "forecast_window": 24 * 3,  # 3-day forecast
 }
@@ -830,15 +821,15 @@ for location_name, location_query in LOCATIONS.items():
 if __name__ == "__main__":
     N_DAYS = 4
     N_HOURS = 24 * N_DAYS
-    for location_query in LOCATIONS.values():
+    for location_query in list(LOCATIONS.values())[:1]:
         print(f"location: {location_query}")
-        genesis_datetime = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=4)).to_pydatetime()
+        genesis_datetime = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=7)).to_pydatetime()
         target_datetime = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=0)).to_pydatetime()
         forecast, scores = forecast_weather(
             location_query=location_query,
             target_datetime=target_datetime,
             genesis_datetime=genesis_datetime,
-            n_days_pretraining=7,
+            n_days_pretraining=30,
             lookback_window=24 * 3,
             forecast_window=24 * 3,
         )
