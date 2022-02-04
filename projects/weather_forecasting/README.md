@@ -1,6 +1,6 @@
 # Weather Forecasting
 
-[![streamlit](http://img.shields.io/badge/streamlit-app-red.svg?style=flat)](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting_v2.py)
+[![streamlit](http://img.shields.io/badge/streamlit-app-blue.svg?style=flat)](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting.py)
 
 The purpose of this project is to train a model to perform weather forecasting
 using [noaa.gov](https://www.ncei.noaa.gov/) data.
@@ -168,7 +168,7 @@ export FLYTE_CREDENTIALS_OAUTH_SCOPES=all
 streamlit run dashboard/weather_forecasting_v2.py
 ```
 
-[Live Demo](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting_v2.py)
+[Live Demo](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting.py)
 
 ## Resources
 
