@@ -799,7 +799,7 @@ SLACK_NOTIFICATION = Slack(
 # run the job every hour
 CRON_SCHEDULE = CronSchedule(
     schedule="0 * * * *",
-    # kickoff_time_input_arg="target_datetime",
+    kickoff_time_input_arg="target_datetime",
 )
 
 KWARGS = {
