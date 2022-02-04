@@ -105,7 +105,7 @@ selected_city = st.selectbox(
     format_func=lambda x: CITY_LABEL_MAP[x]
 )
 
-executions, _ = remote.client.list_executions_paginated(
+[latest_execution, *_], _ = remote.client.list_executions_paginated(
     "flytelab",
     "development",
     limit=1,
@@ -116,10 +116,10 @@ executions, _ = remote.client.list_executions_paginated(
     sort_by=Sort.from_python_std("desc(execution_created_at)"),
 )
 
-wf_execution_output = remote.client.get_execution_data(executions[0].id)
-literals = wf_execution_output.full_outputs.literals
-forecast = Forecast.from_json(MessageToJson(literals["forecast"].scalar.generic))
-scores = Scores.from_json(MessageToJson(literals["scores"].scalar.generic))
+wf_execution = remote.fetch_workflow_execution(name=latest_execution.id.name)
+remote.sync(wf_execution, sync_nodes=False)
+forecast = Forecast.from_dict(wf_execution.outputs["forecast"])
+scores = wf_execution.outputs["scores"]
 
 with st.expander("Model Metadata"):
     st.markdown(f"""

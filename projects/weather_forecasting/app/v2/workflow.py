@@ -21,12 +21,11 @@ from sklearn.linear_model import SGDRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.multioutput import MultiOutputRegressor
 
-from flytekit import conditional, dynamic, task, workflow, kwtypes, CronSchedule, LaunchPlan, Resources, Slack, Email
+from flytekit import dynamic, task, workflow, CronSchedule, LaunchPlan, Resources, Slack, Email
 from flytekit.models.core.execution import WorkflowExecutionPhase
 from flytekit.types.file import JoblibSerializedFile
-from flytekit.types.schema import FlyteSchema
 
-import flytekitplugins.pandera
+import flytekitplugins.pandera  # noqa
 
 
 USER_AGENT = "flyte-weather-forecasting-agent"
@@ -49,21 +48,20 @@ geolocator = Nominatim(user_agent=USER_AGENT, timeout=10)
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1, max_retries=10)
 
 
-TrainingSchema = FlyteSchema[kwtypes(date=datetime, air_temp=float, dew_temp=float)]
-
-
 class GlobalHourlyDataRaw(pa.SchemaModel):
-    date: Series[pa.typing.DateTime]
-    tmp: Series[str]
+    DATE: Series[pa.typing.DateTime]
+    TMP: Series[str]
 
     class Config:
         coerce = True
 
 
-class GlobalHourlyDataClean(pa.SchemaModel):
-    date: Index[pa.typing.DateTime]
-    air_temp: Series[float]
-    dew_temp: Series[float]
+class GlobalHourlyData(pa.SchemaModel):
+
+    # validate the min and max temperature range in degrees Celsius
+    air_temp: Series[float] = pa.Field(ge=-273.15, le=459.67)
+    dew_temp: Series[float] = pa.Field(ge=-273.15, le=459.67)
+    date: Index[pa.typing.DateTime] = pa.Field(unique=True)
 
     class Config:
         coerce = True
@@ -250,38 +248,7 @@ def parse_temperature(temp: pd.Series, suffix: str) -> pd.Series:
 
 
 @pa.check_types
-def parse_global_hourly_data(df: DataFrame[GlobalHourlyDataRaw]) -> DataFrame[GlobalHourlyDataClean]:
-    """Process raw global hourly data.
-
-    For reference, see data documents:
-    - https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
-    - https://www.ncei.noaa.gov/data/global-hourly/doc/CSV_HELP.pdf
-    """
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["air_temp", "air_temp_quality_code", "date"])
-    return (
-        # "tmp" is a string column and needs to be further parsed
-        parse_temperature(df["tmp"], suffix="air_")
-        .join(parse_temperature(df["dew"], suffix="dew_"))
-        .join(df["date"])
-        .assign(
-            # round down to the hour
-            date=lambda _: _.date.dt.floor("H"),
-        )
-        # remove erroneous data, for details see:
-        # page 10, "AIR-TEMPERATURE-OBSERVATION" of
-        # https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
-        .loc[lambda df: ~df.air_temp_quality_code.isin({"3", "7"})]
-        # get hourly mean air temperature across readings of different sensor locations
-        .groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
-        # resample at hourly interval to make sure all hourly intervals have an entry
-        .resample("1H").mean()
-        # linearly interpolate into the future
-        .interpolate(method="linear", limit_direction="forward", limit=None)
-    )
-
-
-def get_data_file(filepath: str) -> pd.DataFrame:
+def get_data_file(filepath: str) -> DataFrame[GlobalHourlyDataRaw]:
     """Get raw data file from global hourly archive.
 
     https://www.ncei.noaa.gov/data/global-hourly
@@ -300,7 +267,7 @@ def get_data_file(filepath: str) -> pd.DataFrame:
     )
 
 
-def get_raw_data(responses: List[dict]) -> List[pd.DataFrame]:
+def get_raw_data(responses: List[dict]) -> DataFrame[GlobalHourlyDataRaw]:
     data = []
     logger.debug(f"found {len(responses)} responses")
     # TODO: figure out how to not cache a data file if doesn't contain data for all hours of the day
@@ -308,17 +275,38 @@ def get_raw_data(responses: List[dict]) -> List[pd.DataFrame]:
         for station in response["stations"]:
             print(f"station: {station['name']}")
         data.append(get_data_file(filepath=response['filePath']))
-    return data
+    return pd.concat(data)
 
 
-def process_raw_training_data(data: List[pd.DataFrame]) -> pd.DataFrame:
-    if len(data) == 0:
-        logger.debug(f"no data found")
-        return pd.DataFrame()
+def process_raw_training_data(raw_data: DataFrame[GlobalHourlyDataRaw]) -> DataFrame[GlobalHourlyData]:
+    """Process raw global hourly data.
+
+    For reference, see data documents:
+    - https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
+    - https://www.ncei.noaa.gov/data/global-hourly/doc/CSV_HELP.pdf
+    """
+    if raw_data.empty:
+        return pd.DataFrame(columns=["air_temp", "air_temp_quality_code", "date"])
+    raw_data = raw_data.rename(columns=lambda x: x.lower()).astype({"date": "datetime64[ns]"})
     return (
-        pd.concat(data)
-        .rename(columns=lambda x: x.lower()).astype({"date": "datetime64[ns]"})
-        .pipe(parse_global_hourly_data)
+        # "tmp" is a string column and needs to be further parsed
+        parse_temperature(raw_data["tmp"], suffix="air_")
+        .join(parse_temperature(raw_data["dew"], suffix="dew_"))
+        .join(raw_data["date"])
+        .assign(
+            # round down to the hour
+            date=lambda _: _.date.dt.floor("H"),
+        )
+        # remove erroneous data, for details see:
+        # page 10, "AIR-TEMPERATURE-OBSERVATION" of
+        # https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
+        .loc[lambda df: ~df.air_temp_quality_code.isin({"3", "7"})]
+        # get hourly mean air temperature across readings of different sensor locations
+        .groupby("date").agg({"air_temp": "mean", "dew_temp": "mean"})
+        # resample at hourly interval to make sure all hourly intervals have an entry
+        .resample("1H").mean()
+        # linearly interpolate into the future
+        .interpolate(method="linear", limit_direction="forward", limit=None)
     )
 
 
@@ -333,19 +321,20 @@ def get_weather_data(
     start: datetime,
     end: datetime,
     fetch_date: datetime,
-) -> TrainingSchema:
+) -> DataFrame[GlobalHourlyData]:
     logger.info(
         f"getting global hourly data for query: {bounding_box} between {start} and {end}, fetch date: {fetch_date}"
     )
-    responses = get_global_hourly_data_responses(bounding_box=bounding_box, start=start, end=end)
-    raw_data = get_raw_data(responses=responses)
-    data = process_raw_training_data(data=raw_data)
-    training_data = TrainingSchema()
-    training_data.open().write(data)
-    return training_data
+    return process_raw_training_data(
+        raw_data=get_raw_data(
+            responses=get_global_hourly_data_responses(bounding_box=bounding_box, start=start, end=end)
+        )
+    )
 
 
-def _prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
+def _prepare_training_instance(
+    training_data: DataFrame[GlobalHourlyData], start: datetime, end: datetime
+) -> TrainingInstance:
     logging.debug(f"get training instance: {start} - {end}")
 
     # make sure dates are timezone-unaware
@@ -361,9 +350,9 @@ def _prepare_training_instance(training_data: TrainingSchema, start: datetime, e
     features = training_data.loc[start: end - pd.Timedelta(1, unit="H")].sort_index(ascending=False)
 
     if not (training_data.empty or features.empty):
-        air_temp_features=features["air_temp"].tolist()
-        dew_temp_features=features["dew_temp"].tolist()
-        time_based_feature=features.index[0].to_pydatetime()
+        air_temp_features = features["air_temp"].tolist()
+        dew_temp_features = features["dew_temp"].tolist()
+        time_based_feature = features.index[0].to_pydatetime()
     if pd.to_datetime(end) in training_data.index:
         target = Target(
             air_temp=training_data["air_temp"].loc[end],
@@ -381,8 +370,12 @@ def _prepare_training_instance(training_data: TrainingSchema, start: datetime, e
 
 
 @task(requests=request_resources, limits=limit_resources)
-def prepare_training_instance(training_data: TrainingSchema, start: datetime, end: datetime) -> TrainingInstance:
-    return _prepare_training_instance(training_data.open().all(), start, end)
+def prepare_training_instance(
+    training_data: DataFrame[GlobalHourlyData],
+    start: datetime,
+    end: datetime,
+) -> TrainingInstance:
+    return _prepare_training_instance(training_data, start, end)
 
 
 @task
@@ -393,12 +386,11 @@ def round_datetime(dt: datetime, ceil: bool) -> datetime:
 
 @task(requests=request_resources, limits=limit_resources)
 def instances_from_daterange(
-    training_data: TrainingSchema,
+    training_data: DataFrame[GlobalHourlyData],
     start: datetime,
     end: datetime,
     lookback_window: int,
 ) -> List[TrainingInstance]:
-    training_data: pd.Dataframe = training_data.open().all()
     training_instances = []
     diff_in_hours = int((end - start).total_seconds() / 60 / 60)
     for i in range(1, diff_in_hours + 1):
@@ -428,7 +420,7 @@ def get_training_instances(
     lookback_window: int,
 ) -> List[TrainingInstance]:
     training_data = get_weather_data(
-        bounding_box=bounding_box, 
+        bounding_box=bounding_box,
         start=round_datetime(dt=start, ceil=False),
         end=round_datetime(dt=end, ceil=True),
         # Make sure the processed weather data cache is invalidated every hour.
@@ -444,7 +436,7 @@ def get_training_instances(
 
 def serialize_model(model: BaseEstimator) -> JoblibSerializedFile:
     """Convert model object to compressed byte string."""
-    out_file = f"/tmp/model.joblib"
+    out_file = "/tmp/model.joblib"
     with open(out_file, "wb") as f:
         joblib.dump(model, f, compress=True)
     return JoblibSerializedFile(path=out_file)
@@ -538,7 +530,7 @@ def _update_model(model, scores, training_instance):
     # compute running validation mean absolute error before updating the model
     valid_exp_mae = exp_weighted_mae(abs(y_pred - training_instance.target.air_temp), scores.valid_exp_mae)
 
-    # update the model 
+    # update the model
     model.partial_fit(features, encode_targets(training_instance.target))
 
     # compute running training mean absolute error after the update
@@ -601,7 +593,7 @@ def init_model(
 @task
 def get_previous_target_datetime(target_datetime: datetime, genesis_datetime: datetime) -> datetime:
     """Get the previous target datetime, rounded down to days since genesis datetime.
-    
+
     This means that the model will only update every day.
     """
     diff = math.ceil((target_datetime - genesis_datetime).total_seconds() / 60 / 60 / 24)
@@ -628,7 +620,7 @@ def get_latest_model(
     genesis_datetime: datetime,
     n_days_pretraining: int,
     lookback_window: int,
-)  -> ModelUpdate:
+) -> ModelUpdate:
     if target_datetime <= genesis_datetime:
         logging.info(f"initializing model at {genesis_datetime}")
         return init_model(
@@ -727,12 +719,12 @@ def round_datetime_to_hour(dt: datetime) -> datetime:
 def normalize_datetimes(
     genesis_datetime: datetime,
     target_datetime: datetime,
-    training_data: TrainingSchema,
+    training_data: DataFrame[GlobalHourlyData],
 ) -> NormalizedDatetimes:
     """Get the date of the latest available training data."""
     genesis_datetime = genesis_datetime.replace(tzinfo=None)
     target_datetime = target_datetime.replace(tzinfo=None)
-    latest_available = training_data.open().all().index[-1].to_pydatetime()
+    latest_available = training_data.index[-1].to_pydatetime()
     target_datetime = min(target_datetime, latest_available)
     if target_datetime < genesis_datetime:
         genesis_datetime = latest_available
