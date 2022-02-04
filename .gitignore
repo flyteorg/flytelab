@@ -5,6 +5,7 @@ env.txt
 **/_pb_output/*
 bin
 flyte-package.tgz
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

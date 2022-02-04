@@ -104,12 +104,13 @@ serialize:
 		--image ${FULL_IMAGE_NAME}:${PREFIX}-${VERSION}
 
 .PHONY: register
-register: docker-build docker-push serialize
+register: docker-push serialize
 	flytectl -c ${FLYTECTL_CONFIG} \
 		register files \
 		--project flytelab \
 		--domain development \
 		--archive flyte-package.tgz \
+		--force \
 		--k8sServiceAccount ${SERVICE_ACCOUNT} \
 		--version ${VERSION}
 

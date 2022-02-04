@@ -771,6 +771,7 @@ def forecast_weather(
 # by default, set target and genesis datetime launchplan to three days ago.
 DEFAULT_GENESIS_TIME = (pd.Timestamp.now().floor("d") - pd.Timedelta(days=3)).to_pydatetime()
 DEFAULT_INPUTS = {
+    "target_datetime": DEFAULT_GENESIS_TIME,
     "genesis_datetime": DEFAULT_GENESIS_TIME,
     "n_days_pretraining": 30,  # one month pre training
     "lookback_window": 24 * 3,  # 3-day lookback
@@ -798,7 +799,7 @@ SLACK_NOTIFICATION = Slack(
 # run the job every hour
 CRON_SCHEDULE = CronSchedule(
     schedule="0 * * * *",
-    kickoff_time_input_arg="target_datetime",
+    # kickoff_time_input_arg="target_datetime",
 )
 
 KWARGS = {
