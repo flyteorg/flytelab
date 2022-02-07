@@ -7,11 +7,18 @@ system.
 
 ### Sandbox
 
-<!-- TODO update project registration and resource updating to use flytectl -->
+Create project:
 
 ```bash
-flyte-cli register-project -h localhost:30081 -i -p flytelab -n flytelab -d 'ML projects using Flyte'
+flytectl create project \
+    --name flytelab \
+    --id flytelab \
+    --description "flytelab: ml projects in flyte" \
+    --config .flyte/sandbox-config.yaml \
+    --project flytelab
 ```
+
+Update cluster resource attributes:
 
 ```bash
 flyte-cli -i \
@@ -24,15 +31,22 @@ flyte-cli -i \
 
 ### Remote
 
-<!-- TODO update project registration and resource updating to use flytectl -->
+Create project:
 
 ```bash
-flyte-cli register-project -h demo.nuclyde.io -p flytelab -n flytelab -d 'ML projects using Flyte'
+flytectl create project \
+    --name flytelab \
+    --id flytelab \
+    --description "flytelab: ml projects in flyte" \
+    --config .flyte/remote-config.yaml \
+    --project flytelab
 ```
+
+Update cluster resource attributes:
 
 ```bash
 flyte-cli \
-    -h demo.nuclyde.io \
+    -h playground.hosted.unionai.cloud \
     -p flytelab \
     -d development update-cluster-resource-attributes \
     --attributes projectQuotaCpu 16 \
@@ -69,31 +83,7 @@ REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
 
-## Production [demo.nuclyde.io](https://demo.nuclyde.io/console)
-
-Make sure you have a config file `~/.flyte/nuclydedemo-config.yaml` in your local filesystem:
-
-```
-admin:
-  # For GRPC endpoints you might want to use dns:///flyte.myexample.com
-  endpoint: dns:///demo.nuclyde.io
-  authType: Pkce
-  # Change insecure flag to ensure that you use the right setting for your environment
-  insecure: false
-storage:
-  type: stow
-  stow:
-    kind: s3
-    config:
-      auth_type: iam
-      region: us-east-2
-  container: flyte-demo
-logger:
-  # Logger settings to control logger output. Useful to debug logger:
-  show-source: true
-  level: 1
-
-```
+## Production [playground.hosted.unionai.cloud](https://playground.hosted.unionai.cloud/console)
 
 ### Register Workflows
 

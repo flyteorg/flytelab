@@ -1,6 +1,6 @@
 admin:
   # For GRPC endpoints you might want to use dns:///flyte.myexample.com
-  endpoint: dns:///demo.nuclyde.io
+  endpoint: dns:///playground.hosted.unionai.cloud
   authType: Pkce
   # Change insecure flag to ensure that you use the right setting for your environment
   insecure: false
@@ -11,7 +11,6 @@ storage:
     config:
       auth_type: iam
       region: us-east-2
-  container: flyte-demo
 logger:
   # Logger settings to control logger output. Useful to debug logger:
   show-source: true
