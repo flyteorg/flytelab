@@ -10,7 +10,7 @@ locations="atlanta seattle hyderabad mumbai taipei appleton dharamshala fremont"
 
 
 get-status () {
-    flytectl -c ~/.flyte/remote-config.yaml \
+    flytectl -c .flyte/remote-config.yaml \
         get launchplan \
         -p flytelab \
         -d development \
