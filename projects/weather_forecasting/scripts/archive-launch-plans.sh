@@ -10,7 +10,7 @@ locations="atlanta seattle hyderabad mumbai taipei appleton dharamshala fremont"
 
 
 archive () {
-    flytectl -c ~/.flyte/nuclydedemo-config.yaml \
+    flytectl -c ~/.flyte/remote-config.yaml \
         update launchplan \
         -p flytelab \
         -d development \
