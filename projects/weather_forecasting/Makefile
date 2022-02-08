@@ -11,10 +11,6 @@ ifeq ($(NOPUSH), true)
 	NOPUSH=1
 endif
 
-ifndef SERVICE_ACCOUNT
-	SERVICE_ACCOUNT=default
-endif
-
 ifndef FLYTECTL_CONFIG
 	FLYTECTL_CONFIG=~/.flyte/config.yaml
 endif
@@ -111,7 +107,6 @@ register: docker-push serialize
 		--domain development \
 		--archive flyte-package.tgz \
 		--force \
-		--k8sServiceAccount ${SERVICE_ACCOUNT} \
 		--version ${VERSION}
 
 .PHONY: fast_serialize
@@ -132,5 +127,4 @@ fast_register: fast_serialize
 		--project flytelab \
 		--domain development \
 		--archive flyte-package.tgz \
-		--k8sServiceAccount ${SERVICE_ACCOUNT} \
 		--version fast${VERSION}

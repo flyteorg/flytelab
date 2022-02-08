@@ -67,7 +67,6 @@ eval $(sed 's/^/export /g' env.txt)
 
 ```bash
 FLYTECTL_CONFIG=.flyte/sandbox-config.yaml \
-SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make register
 ```
@@ -78,7 +77,6 @@ In case you've only changed user code and not system-level dependencies:
 
 ```bash
 FLYTECTL_CONFIG=.flyte/sandbox-config.yaml \
-SERVICE_ACCOUNT=default \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
@@ -89,7 +87,7 @@ make fast_register
 
 ```bash
 FLYTECTL_CONFIG=.flyte/remote-config.yaml \
-SERVICE_ACCOUNT=demo \
+FLYTE_CONFIG=.flyte/remote.config \
 REGISTRY=ghcr.io/flyteorg \
 make register
 ```
@@ -98,7 +96,6 @@ make register
 
 ```bash
 FLYTECTL_CONFIG=.flyte/remote-config.yaml \
-SERVICE_ACCOUNT=demo \
 REGISTRY=ghcr.io/flyteorg \
 make fast_register
 ```
