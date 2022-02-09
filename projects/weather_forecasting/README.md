@@ -165,7 +165,7 @@ export FLYTE_CREDENTIALS_CLIENT_ID=flytepropeller
 export FLYTE_CREDENTIALS_AUTH_MODE=basic
 export FLYTE_CREDENTIALS_AUTHORIZATION_METADATA_KEY=flyte-authorization
 export FLYTE_CREDENTIALS_OAUTH_SCOPES=all
-streamlit run dashboard/weather_forecasting_v2.py
+streamlit run dashboard/weather_forecasting.py
 ```
 
 [Live Demo](https://share.streamlit.io/flyteorg/flytelab/main/projects/weather_forecasting/dashboard/weather_forecasting.py)

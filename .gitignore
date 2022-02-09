@@ -1,4 +1,5 @@
 # Repo-specific
+env/**/*
 env.txt
 .cache/*
 .vscode
