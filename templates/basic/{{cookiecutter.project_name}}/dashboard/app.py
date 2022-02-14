@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -18,11 +19,13 @@ parser = ArgumentParser()
 parser.add_argument("--remote", action="store_true")
 args = parser.parse_args()
 
+backend = os.getenv("FLYTE_BACKEND", 'remote' if args.remote else 'sandbox')
+
 # configuration for accessing a Flyte cluster backend
 remote = FlyteRemote.from_config(
     default_project=PROJECT_NAME,
     default_domain="development",
-    config_file_path=Path(__file__).parent / f"{'remote' if args.remote else 'sandbox'}.config",
+    config_file_path=Path(__file__).parent / f"{backend}.config",
 )
 
 # get the latest workflow execution
