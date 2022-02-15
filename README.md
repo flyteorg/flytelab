@@ -29,7 +29,13 @@ Fork the repo on github, then clone it:
 git clone https://github.com/<your-username>/flytelab
 ```
 
-> **NOTE:** Make sure you're using `Python > 3.7`
+<div style="background-color: #E7F3FE; border-left: 6px solid #2296F3; color: #383838; padding: 5px 10px">
+<p>
+
+**Note:** Make sure you're using `Python > 3.7`
+
+</p>
+</div>
 
 Create a new branch for your project:
 
@@ -37,11 +43,15 @@ Create a new branch for your project:
 git checkout -b my_project  # replace this with your project name
 ```
 
-> **NOTE:** For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants:
-> Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more
-> than one person, assign *one teammate* to create a project directory and push it into your team's branch.
+<div style="background-color: #E7F3FE; border-left: 6px solid #2296F3; color: #383838; padding: 5px 10px">
+<p>
 
-We use `cookiecutter` to manage project templates.
+**Note:** For [MLOps Community Engineering Labs](https://flyte.org/hackathon/) participants:
+Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more
+than one person, assign *one teammate* to create a project directory and push it into your team's branch.
+
+</p>
+</div>
 
 Install prerequisites:
 
@@ -55,14 +65,29 @@ In the root of the repo, create a new project:
 cookiecutter templates/basic -o projects
 ```
 
+<div style="background-color: #E7F3FE; border-left: 6px solid #2296F3; color: #383838; padding: 5px 10px;">
+<p>
+
+**Note:** There are more templates in the `templates` directory depending on the
+requirements of your project.
+
+</p>
+</div>
+
 You'll need to answer two questions:
 ```
 project_name: my_project  # replace this with your project name
 project_author: foobar    # replace this with your name
 ```
 
-> **NOTE:** For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants:
-> `project_author` should be your team name.
+<div style="background-color: #E7F3FE; border-left: 6px solid #2296F3; color: #383838; padding: 5px 10px">
+<p>
+
+**Note:** For [MLOps Community Engineering Labs](https://flyte.org/hackathon/) participants:
+`project_author` should be your team name.
+
+</p>
+</div>
 
 The project structure looks like the following:
 ```bash
@@ -155,8 +180,14 @@ Start the sandbox cluster:
 flytectl sandbox start --source .
 ```
 
-> **NOTE**: If you're having trouble getting the Flyte sandbox to start, see the
-> [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide).
+<div style="background-color: #E7F3FE; border-left: 6px solid #2296F3; color: #383838; padding: 5px 10px">
+<p>
+
+**Note**: If you're having trouble getting the Flyte sandbox to start, see the
+[troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide).
+
+</p>
+</div>
 
 You should now be able to go to `http://localhost:30081/console` on your browser to see the Flyte UI.
 
