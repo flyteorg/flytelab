@@ -1,5 +1,4 @@
-FROM python:3.8-slim-buster
-LABEL org.opencontainers.image.source https://github.com/flyteorg/flytelab
+FROM python:3.9-slim-buster
 
 WORKDIR /root
 ENV VENV /opt/venv
@@ -10,7 +9,6 @@ ENV PYTHONPATH /root
 # e.g. flyte.config or sandbox.config
 ARG config
 
-# This is necessary for opencv to work
 RUN apt-get update && \
     apt-get install -y \
     libsm6 \
@@ -23,6 +21,7 @@ RUN apt-get update && \
 RUN pip3 install awscli
 
 ENV VENV /opt/venv
+
 # Virtual environment
 RUN python3 -m venv ${VENV}
 ENV PATH="${VENV}/bin:$PATH"
@@ -31,12 +30,10 @@ ENV PATH="${VENV}/bin:$PATH"
 COPY requirements.txt /root
 RUN pip install -r /root/requirements.txt
 
-COPY app /root/app
+COPY my_project /root/my_project
 COPY $config /root/flyte.config
 
-# This tag is supplied by the build script and will be used to determine the version
+# This image is supplied by the build script and will be used to determine the version
 # when registering tasks, workflows, and launch plans
-ARG tag
-ENV FLYTE_INTERNAL_IMAGE $tag
-ARG noaa_api_key
-ENV NOAA_API_KEY $noaa_api_key
+ARG image
+ENV FLYTE_INTERNAL_IMAGE $image

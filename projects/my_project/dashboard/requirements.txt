@@ -1,0 +1,5 @@
+awscli
+flytekit>=0.30.0
+flyteidl
+pandas
+sklearn

@@ -92,8 +92,6 @@ docker-push: docker-build
 .PHONY: serialize
 serialize:
 	echo ${CURDIR}
-	rm -rf ${CURDIR}/_pb_output || true
-	mkdir ${CURDIR}/_pb_output || true
 	pyflyte -c flyte.config --pkgs app package \
 		--force \
 		--in-container-source-path /root \
@@ -112,8 +110,6 @@ register: docker-push serialize
 .PHONY: fast_serialize
 fast_serialize:
 	echo ${CURDIR}
-	mkdir ${CURDIR}/_pb_output || true
-	rm ${CURDIR}/_pb_output/* || true
 	pyflyte -c flyte.config --pkgs app package \
 		--force \
 		--in-container-source-path /root \
