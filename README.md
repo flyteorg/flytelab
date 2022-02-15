@@ -212,8 +212,8 @@ if you want to use the [FlyteRemote](https://docs.flyte.org/projects/flytekit/en
 from the playground.
 
 ```
-export FLYTE_CREDENTIALS_CLIENT_SECRET="<client_id>"
-export FLYTE_CREDENTIALS_CLIENT_ID="<client_secret>"
+export FLYTE_CREDENTIALS_CLIENT_ID="<client_id>"
+export FLYTE_CREDENTIALS_CLIENT_SECRET="<client_secret>"
 ```
 
 Deploying to the playground is as simple as:
@@ -262,8 +262,8 @@ cluster:
 
 ```bash
 FLYTE_BACKEND = "remote"  # point the app to the playground backend
-FLYTE_CREDENTIALS_CLIENT_SECRET = "<client_id>"  # replace this with your client id
-FLYTE_CREDENTIALS_CLIENT_ID = "<client_secret>"  # replace this with your client secret
+FLYTE_CREDENTIALS_CLIENT_ID = "<client_id>"  # replace this with your client id
+FLYTE_CREDENTIALS_CLIENT_SECRET = "<client_secret>"  # replace this with your client secret
 ```
 
 You can also add additional secrets to the secrets file if needed.

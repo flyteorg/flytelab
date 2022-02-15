@@ -1,3 +1,5 @@
 flytekit>=0.30.0
+flytekitplugins-data-fsspec
 pandas
+s3fs
 sklearn
