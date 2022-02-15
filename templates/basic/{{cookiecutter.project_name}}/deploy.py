@@ -106,7 +106,7 @@ def serialize(tag: str):
     subprocess.run([
         "pyflyte",
         "-c", "flyte.config",
-        "--pkgs", "my_project",
+        "--pkgs", "{{cookiecutter.project_name}}",
         "package",
         "--force",
         "--in-container-source-path", "/root",

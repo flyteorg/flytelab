@@ -23,13 +23,25 @@ own set of dependencies.
 
 ## 🚀 Create a New Project
 
+Fork the repo on github, then clone it:
+
+```bash
+git clone https://github.com/<your-username>/flytelab
+```
+
 > **NOTE:** Make sure you're using `Python > 3.7`
 
-We use `cookiecutter` to manage project templates.
+Create a new branch for your project:
+
+```bash
+git checkout -b my_project  # replace this with your project name
+```
 
 > **NOTE:** For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants:
 > Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more
-> than one person, assign one teammate to create a project directory and push it into your team's branch.
+> than one person, assign *one teammate* to create a project directory and push it into your team's branch.
+
+We use `cookiecutter` to manage project templates.
 
 Install prerequisites:
 
@@ -95,8 +107,10 @@ You should see something like this in the output (you can ignore the warnings):
 trained model: LogisticRegression()
 ```
 
-Congrats! You just setup your flytelab project 🌟. You can now modify and iterate on the
-`workflows.py` file to create your very own Flyte workflows using `flytekit`. You can refer to the
+Congrats! You just setup your flytelab project 🌟.
+
+You can now modify and iterate on the `workflows.py` file to create your very own Flyte
+workflows using `flytekit`. You can refer to the
 [User Guide](https://doc s.flyte.org/projects/cookbook/en/latest/index.html),
 [Tutorials](https://docs.flyte.org/projects/cookbook/en/latest/tutorials.html),
 and [Flytekit API Reference](https://docs.flyte.org/projects/flytekit/en/latest/) to
@@ -141,9 +155,12 @@ Start the sandbox cluster:
 flytectl sandbox start --source .
 ```
 
+> **NOTE**: If you're having trouble getting the Flyte sandbox to start, see the
+> [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide).
+
 You should now be able to go to `http://localhost:30081/console` on your browser to see the Flyte UI.
 
-Next, deploy your project's workflows with:
+`git commit` your changes, then deploy your project's workflows with:
 
 ```bash
 python deploy.py
@@ -190,7 +207,7 @@ to run your workflows.
 When you're ready to deploy to a full-fledged production Flyte cluster, first you'll need to
 get an account. Currenty, you'll need to reach out to the Union.ai team on the Flyte OSS Slack 
 [`#flytelab` channel](https://flyte-org.slack.com/archives/C032ZU3FSAX) to request an account,
-we're you'll receive a login, password, and in addition to that a `client_id` and `client_secret`
+we're you'll receive a login and password, in addition to a `client_id` and `client_secret`
 if you want to use the [FlyteRemote](https://docs.flyte.org/projects/flytekit/en/latest/design/control_plane.html#design-control-plane) object to get the input and output data of your workflow executions
 from the playground.
 
