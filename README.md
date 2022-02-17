@@ -111,7 +111,7 @@ Congrats! You just setup your flytelab project 🌟.
 
 You can now modify and iterate on the `workflows.py` file to create your very own Flyte
 workflows using `flytekit`. You can refer to the
-[User Guide](https://doc s.flyte.org/projects/cookbook/en/latest/index.html),
+[User Guide](https://docs.flyte.org/projects/cookbook/en/latest/index.html),
 [Tutorials](https://docs.flyte.org/projects/cookbook/en/latest/tutorials.html),
 and [Flytekit API Reference](https://docs.flyte.org/projects/flytekit/en/latest/) to
 learn more about all of `Flyte`'s capabilities.
