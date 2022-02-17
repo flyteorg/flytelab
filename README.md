@@ -29,7 +29,7 @@ Fork the repo on github, then clone it:
 git clone https://github.com/<your-username>/flytelab
 ```
 
-| **NOTE**: |
+| **Note** |
 |----------|
 | Make sure you're using `Python > 3.7`|
 
@@ -39,9 +39,9 @@ Create a new branch for your project:
 git checkout -b my_project  # replace this with your project name
 ```
 
-> **NOTE:** For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants:
-> Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more
-> than one person, assign *one teammate* to create a project directory and push it into your team's branch.
+| **Note** |
+|----------|
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more than one person, assign *one teammate* to create a project directory and push it into your team's branch. |
 
 We use `cookiecutter` to manage project templates.
 
@@ -57,8 +57,10 @@ In the root of the repo, create a new project:
 cookiecutter templates/basic -o projects
 ```
 
-> **NOTE:** There are more templates in the `templates` directory depending on the
-requirements of your project.
+| **Note** |
+|----------|
+| There are more templates in the `templates` directory depending on the
+requirements of your project. |
 
 You'll need to answer two questions:
 ```
@@ -66,8 +68,9 @@ project_name: my_project  # replace this with your project name
 project_author: foobar    # replace this with your name
 ```
 
-> **NOTE:** For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants:
-> `project_author` should be your team name.
+| **Note** |
+|----------|
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name. |
 
 The project structure looks like the following:
 ```bash
@@ -160,8 +163,10 @@ Start the sandbox cluster:
 flytectl sandbox start --source .
 ```
 
-> **NOTE**: If you're having trouble getting the Flyte sandbox to start, see the
-> [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide).
+| **Note** |
+|----------|
+| If you're having trouble getting the Flyte sandbox to start, see the
+[troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide). |
 
 You should now be able to go to `http://localhost:30081/console` on your browser to see the Flyte UI.
 
@@ -230,7 +235,7 @@ python deploy.py --remote
 <!-- TODO: add instructions for fast registration -->
 
 
-## [Optional] 💻 Streamlit App
+## 💻 Streamlit App [Optional]
 
 The `basic` project template ships with a `dashboard/app.py` script that uses
 [`streamlit`](https://streamlit.io/) as a UI for interacting with your model.
