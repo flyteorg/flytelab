@@ -69,7 +69,7 @@ project_author: foobar    # replace this with your name
 
 | **Note** |
 |:---------|
-| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/)participants: `project_author` should be your team name. |
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name. |
 
 The project structure looks like the following:
 ```bash
