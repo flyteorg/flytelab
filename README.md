@@ -29,11 +29,9 @@ Fork the repo on github, then clone it:
 git clone https://github.com/<your-username>/flytelab
 ```
 
-| **NOTE**: Make sure you're using `Python > 3.7` |
+| **NOTE**: |
 |----------|
 | Make sure you're using `Python > 3.7`|
-
-> **NOTE:** Make sure you're using `Python > 3.7`
 
 Create a new branch for your project:
 
