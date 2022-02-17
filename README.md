@@ -30,7 +30,7 @@ git clone https://github.com/<your-username>/flytelab
 ```
 
 | **Note** |
-|----------|
+|:---------|
 | Make sure you're using `Python > 3.7`|
 
 Create a new branch for your project:
@@ -58,9 +58,8 @@ cookiecutter templates/basic -o projects
 ```
 
 | **Note** |
-|----------|
-| There are more templates in the `templates` directory depending on the
-requirements of your project. |
+|:---------|
+| There are more templates in the `templates` directory depending on the requirements of your project. |
 
 You'll need to answer two questions:
 ```
@@ -69,7 +68,7 @@ project_author: foobar    # replace this with your name
 ```
 
 | **Note** |
-|----------|
+|:---------|
 | For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/)participants: `project_author` should be your team name. |
 
 The project structure looks like the following:
@@ -164,7 +163,7 @@ flytectl sandbox start --source .
 ```
 
 | **Note** |
-|----------|
+|:---------|
 | If you're having trouble getting the Flyte sandbox to start, see the [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide). |
 
 You should now be able to go to `http://localhost:30081/console` on your browser to see the Flyte UI.
