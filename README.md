@@ -165,8 +165,7 @@ flytectl sandbox start --source .
 
 | **Note** |
 |----------|
-| If you're having trouble getting the Flyte sandbox to start, see the
-[troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide). |
+| If you're having trouble getting the Flyte sandbox to start, see the [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide). |
 
 You should now be able to go to `http://localhost:30081/console` on your browser to see the Flyte UI.
 
