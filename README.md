@@ -40,7 +40,7 @@ git checkout -b my_project  # replace this with your project name
 ```
 
 | **Note** |
-|----------|
+|:---------|
 | For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more than one person, assign *one teammate* to create a project directory and push it into your team's branch. |
 
 We use `cookiecutter` to manage project templates.
@@ -70,7 +70,7 @@ project_author: foobar    # replace this with your name
 
 | **Note** |
 |----------|
-| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name. |
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/)participants: `project_author` should be your team name. |
 
 The project structure looks like the following:
 ```bash
