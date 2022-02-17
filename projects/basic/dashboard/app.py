@@ -1,25 +1,18 @@
-import importlib
 import os
-import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
 import streamlit as st
-import torch
 
 from flytekit.remote import FlyteRemote
 from flytekit.models import filters
 from flytekit.models.admin.common import Sort
+
 from sklearn.datasets import load_digits
 
 
-# import flytelab project source
-sys.path.append(str(Path(__file__).parent.parent))
-importlib.import_module("{{cookiecutter.project_name}}")
-
-
-PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
-WORKFLOW_NAME = "{{cookiecutter.project_name}}.workflows.main"
+PROJECT_NAME = "flytelab-basic".replace("_", "-")
+WORKFLOW_NAME = "basic.workflows.main"
 
 
 parser = ArgumentParser()
@@ -59,8 +52,8 @@ print(model)
 
 data = load_digits(as_frame=True)
 
-st.write("# Flytelab: {{cookiecutter.project_name}}")
-st.write("### {{cookiecutter.description}}")
+st.write("# Flytelab: basic")
+st.write("### A flytelab project")
 st.write(f"Model: `{model}`")
 
 st.write("Use the slider below to select a sample for prediction")
@@ -75,7 +68,4 @@ sample_index = st.slider(
 
 st.image(data.images[sample_index], clamp=True, width=300)
 st.write(f"Ground Truth: {data.target[sample_index]}")
-
-data = torch.from_numpy(data.frame[data.feature_names].loc[[sample_index]].values).float()
-prediction = model(data).argmax().item()
-st.write(f"Prediction: {prediction}")
+st.write(f"Prediction: {model.predict(data.frame[data.feature_names].loc[[sample_index]])[0]}")

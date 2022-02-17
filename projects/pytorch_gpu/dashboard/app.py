@@ -15,11 +15,11 @@ from sklearn.datasets import load_digits
 
 # import flytelab project source
 sys.path.append(str(Path(__file__).parent.parent))
-importlib.import_module("{{cookiecutter.project_name}}")
+importlib.import_module("pytorch_gpu")
 
 
-PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
-WORKFLOW_NAME = "{{cookiecutter.project_name}}.workflows.main"
+PROJECT_NAME = "flytelab-pytorch_gpu".replace("_", "-")
+WORKFLOW_NAME = "pytorch_gpu.workflows.main"
 
 
 parser = ArgumentParser()
@@ -59,8 +59,8 @@ print(model)
 
 data = load_digits(as_frame=True)
 
-st.write("# Flytelab: {{cookiecutter.project_name}}")
-st.write("### {{cookiecutter.description}}")
+st.write("# Flytelab: pytorch_gpu")
+st.write("### A flytelab project")
 st.write(f"Model: `{model}`")
 
 st.write("Use the slider below to select a sample for prediction")

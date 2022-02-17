@@ -21,6 +21,13 @@ applications that do some form of data processing or machine learning.
 The source code for each project can be found in the `projects` directory, where each project has its
 own set of dependencies.
 
+## Table of Contents
+
+- [Create a New Project](#-create-a-new-project)
+- [Environment Setup](#-environment-setup)
+- [Deployment](#-deployment)
+- [Streamlit App [Optional]](#-streamlit-app-optional)
+
 ## 🚀 Create a New Project
 
 Fork the repo on github, then clone it:
