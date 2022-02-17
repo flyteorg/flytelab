@@ -31,6 +31,7 @@ git clone https://github.com/<your-username>/flytelab
 
 | **NOTE**: Make sure you're using `Python > 3.7` |
 |----------|
+| Make sure you're using `Python > 3.7`|
 
 > **NOTE:** Make sure you're using `Python > 3.7`
 
