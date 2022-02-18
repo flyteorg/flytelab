@@ -12,7 +12,7 @@ docker_client = docker.from_env()
 
 
 IMAGE_NAME = "flytelab"
-REGISTRY = "ghcr.io/flyteorg"
+REGISTRY = "ghcr.io/{{cookiecutter.github_username}}"
 PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
 DESCRIPTION = "{{cookiecutter.description}}"
 
@@ -57,7 +57,7 @@ def get_version():
 
 
 def get_tag(version):
-    return f"{REGISTRY}/{IMAGE_NAME}:{PROJECT_NAME}-{version}"
+    return f"{REGISTRY if registry is None else registry}/{IMAGE_NAME}:{PROJECT_NAME}-{version}"
 
 
 def sandbox_docker_build(tag):
@@ -131,10 +131,10 @@ def register(version: str, remote: bool, domain: str):
 
 
 @app.command()
-def main(remote: bool = False, domain: str = "development"):
+def main(remote: bool = False, domain: str = "development", registry: str = None):
     create_project(remote)
     version = get_version()
-    tag = get_tag(version)
+    tag = get_tag(version, registry)
     if remote:
         docker_push(docker_build(tag, remote))
     else:
