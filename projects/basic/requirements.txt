@@ -1,4 +1,0 @@
-flytekit>=0.30.3
-pandas
-s3fs
-sklearn

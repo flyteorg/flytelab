@@ -1,3 +1,0 @@
-# basic
-
-A flytelab project
