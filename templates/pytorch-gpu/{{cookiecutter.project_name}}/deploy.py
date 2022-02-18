@@ -12,7 +12,7 @@ docker_client = docker.from_env()
 
 
 IMAGE_NAME = "flytelab"
-REGISTRY = "ghcr.io/{{cookiecutter.github_username}}"
+REGISTRY = "ghcr.io/{{cookiecutter.github_username}}".lower()
 PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
 DESCRIPTION = "{{cookiecutter.description}}"
 

@@ -222,7 +222,7 @@ to run your workflows.
 When you're ready to deploy to a full-fledged production Flyte cluster, first you'll need to
 get an account. Currenty, you'll need to reach out to the Union.ai team on the Flyte OSS Slack 
 [`#flytelab` channel](https://flyte-org.slack.com/archives/C032ZU3FSAX) to request an account,
-we're you'll receive a login and password, in addition to a `client_id` and `client_secret`
+where you'll receive a `username` and `password`, in addition to a `client_id` and `client_secret`
 if you want to use the [FlyteRemote](https://docs.flyte.org/projects/flytekit/en/latest/design/control_plane.html#design-control-plane) object to get the input and output data of your workflow executions
 from the playground.
 
@@ -231,11 +231,28 @@ export FLYTE_CREDENTIALS_CLIENT_ID="<client_id>"
 export FLYTE_CREDENTIALS_CLIENT_SECRET="<client_secret>"
 ```
 
-Deploying to the playground is as simple as:
+Create personal access token on github, then authenticate to the `ghcr.io` registry:
+
+```bash
+export CR_PAT="<your-token>"
+echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
+```
+
+Go to `https://github.com/<your-username>/flytelab/pkgs/container/flytelab`
+and you should see a package called `flytelab`, then:
+
+1. Click **Add Repository** to link your fork of the `flytelab` repo.
+2. Scroll down to the **Danger Zone**, click **Change visibility**, and make the package public.
+
+Then, deploying to the playground is as simple as:
 
 ```
 python deploy.py --remote
 ```
+
+Go to https://playground.hosted.unionai.cloud, authenticate with your union.ai playground
+`username` and `password`, where you can navigate to your `flytelab-<project-name>` project
+to run your workflows.
 
 <!-- TODO: add instructions for fast registration -->
 
