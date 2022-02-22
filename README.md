@@ -219,17 +219,16 @@ the `Launch` button on the model form.
 The [Union.ai](https://union.ai/) team maintains a playground Flyte cluster that you can use
 to run your workflows.
 
-When you're ready to deploy to a full-fledged production Flyte cluster, first you'll need to
-get an account. Currenty, you'll need to reach out to the Union.ai team on the Flyte OSS Slack 
-[`#flytelab` channel](https://flyte-org.slack.com/archives/C032ZU3FSAX) to request an account,
-where you'll receive a `username` and `password`, in addition to a `client_id` and `client_secret`
-if you want to use the [FlyteRemote](https://docs.flyte.org/projects/flytekit/en/latest/design/control_plane.html#design-control-plane) object to get the input and output data of your workflow executions
-from the playground.
+When you're ready to deploy your workflows to a full-fledged production Flyte cluster, first you'll need to
+request an account on the Flyte OSS Slack [`#flytelab` channel](https://flyte-org.slack.com/archives/C032ZU3FSAX).
 
-```
-export FLYTE_CREDENTIALS_CLIENT_ID="<client_id>"
-export FLYTE_CREDENTIALS_CLIENT_SECRET="<client_secret>"
-```
+| **Note** |
+|:---------|
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: you will receive these credentials after all teams have been finalized. |
+
+You'll receive a `username` and `password` to sign into the [Union.ai Playground](https://playground.hosted.unionai.cloud/console), in addition to a `client_id` and `client_secret` if you want to use the [FlyteRemote](https://docs.flyte.org/projects/flytekit/en/latest/design/control_plane.html#design-control-plane) object to get the input and output data of your workflow executions from the playground.
+
+#### Hosting Docker Images on Github Container Registry
 
 Create a [personal access token (PAT)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on github.
 Make sure to give your PAT [read and write access to packages](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)
@@ -276,6 +275,16 @@ streamlit run dashboard/app.py
 ```
 
 ### Run App Locally against Union.ai Playground Cluster
+
+To access the data on the Union.ai playground, first export your `client_id` and `client_secret`
+to your terminal session.
+
+```
+export FLYTE_CREDENTIALS_CLIENT_ID="<client_id>"
+export FLYTE_CREDENTIALS_CLIENT_SECRET="<client_secret>"
+```
+
+Then start serving your streamlit app with:
 
 ```
 streamlit run dashboard/app.py -- --remote
