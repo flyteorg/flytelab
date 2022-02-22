@@ -68,10 +68,12 @@ cookiecutter templates/basic -o projects
 |:---------|
 | There are more templates in the `templates` directory depending on the requirements of your project. |
 
-You'll need to answer two questions:
+Answer the project setup questions:
 ```
-project_name: my_project  # replace this with your project name
-project_author: foobar    # replace this with your name
+project_name: my_project          # replace this with your project name
+project_author: foobar            # replace this with your name
+github_username: my_username      # replace this with your github username
+description: project description  # optional
 ```
 
 | **Note** |
