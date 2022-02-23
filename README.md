@@ -70,7 +70,7 @@ cookiecutter templates/basic -o projects
 
 Answer the project setup questions:
 ```
-project_name: my_project          # replace this with your project name; project name shouldn't have hyphens
+project_name: my_project          # replace this with your project name; project name cannot contain a hyphen
 project_author: foobar            # replace this with your name
 github_username: my_username      # replace this with your github username
 description: project description  # optional
