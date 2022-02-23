@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import streamlit as st
-pip install flytekit
+!pip install flytekit
 
 from flytekit.remote import FlyteRemote
 from flytekit.models import filters
