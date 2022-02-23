@@ -3,7 +3,11 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import streamlit as st
-python3 install flytekit
+
+import pip
+
+package_names=['flytekit'] #packages to install
+pip.main(['install'] + package_names + ['--upgrade']) 
 
 from flytekit.remote import FlyteRemote
 from flytekit.models import filters
