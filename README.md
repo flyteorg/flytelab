@@ -36,7 +36,7 @@ Fork the repo on github, then clone it:
 git clone https://github.com/<your-username>/flytelab
 ```
 
-| **Note** |
+| **📝 Note** |
 |:---------|
 | Make sure you're using `Python > 3.7`|
 
@@ -46,7 +46,7 @@ Create a new branch for your project:
 git checkout -b my_project  # replace this with your project name
 ```
 
-| **Note** |
+| **📝 Note** |
 |:---------|
 | For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: Each team will have its own branch on the main `flyteorg/flytelab` repo. If you're part of a team of more than one person, assign *one teammate* to create a project directory and push it into your team's branch. |
 
@@ -64,7 +64,7 @@ In the root of the repo, create a new project:
 cookiecutter templates/basic -o projects
 ```
 
-| **Note** |
+| **📝 Note** |
 |:---------|
 | There are more templates in the `templates` directory depending on the requirements of your project. |
 
@@ -77,7 +77,7 @@ github_username: my_username      # replace this with your github username
 description: project description  # optional
 ```
 
-| **Note** |
+| **📝 Note** |
 |:---------|
 | For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name. |
 
@@ -105,9 +105,9 @@ Go into the project directory, then create your project's virtual environment:
 ```bash
 cd projects/my_project
 
-# create and activate virtual environment
-python -m venv env
-source env/bin/activate
+# create and activate virtual environment, name my_env whatever your want
+python -m venv ~/venvs/my_env
+source ~/venvs/my_env/bin/activate
 
 # install requirements
 pip install -r requirements.txt -r requirements-dev.txt
@@ -166,13 +166,31 @@ export PATH=$(pwd)/bin:$PATH # Only required if user used different path then /u
 
 ### Sandbox Deployment
 
-Start the sandbox cluster:
+Start the sandbox cluster from your `projects/my_project` directory:
 
 ```bash
 flytectl sandbox start --source .
 ```
 
-| **Note** |
+<details>
+
+<summary>ℹ Interacting with Flyte sandbox</summary>
+
+Get the status of sandbox:
+
+```
+flytectl sandbox status
+```
+
+Teardown the sandbox:
+
+```
+flytectl sandbox teardown
+```
+
+</details>
+
+| **📝 Note** |
 |:---------|
 | If you're having trouble getting the Flyte sandbox to start, see the [troubleshooting guide](https://docs.flyte.org/en/latest/community/troubleshoot.html#troubleshooting-guide). |
 
@@ -209,13 +227,35 @@ Registering Flyte workflows
 
 </details>
 
+<details>
+
+<summary>ℹ What just happened?</summary>
+
+The `python deploy.py` command just did the following:
+
+1. Built a docker image specified in your project's `Dockerfile` from within the sandbox docker container.
+2. `flytekit` serializes your tasks and workflows into a `flyte-package.tar.gz` file.
+3. `flytectl` registers those Flyte-compatible artifacts to the playground cluster.
+
+</details>
+
+
 On the Flyte UI, you'll see a `flytelab-<project-name>` project namespace on the homepage.
 Navigate to the `my_project.workflows.main` workflow and hit the `Launch Workflow` button, then
 the `Launch` button on the model form.
 
 🎉 Congrats! You just kicked off your first workflow on your local Flyte sandbox cluster.
 
-<!-- TODO: add instructions for fast registration -->
+#### Fast Deployments
+
+By default, Flyte uses docker images to encapsulate all the system and python dependencies of
+your application. If you update those dependencies then you'll need to re-build the docker image.
+However, if you want to quickly deploy _code changes_ in your tasks/workflows, you can go through
+fast registration:
+
+```
+python deploy.py --fast
+```
 
 ### Union.ai Playground Deployment
 
@@ -225,7 +265,7 @@ to run your workflows.
 When you're ready to deploy your workflows to a full-fledged production Flyte cluster, first you'll need to
 request an account on the Flyte OSS Slack [`#flytelab` channel](https://flyte-org.slack.com/archives/C032ZU3FSAX).
 
-| **Note** |
+| **📝 Note** |
 |:---------|
 | For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: you will receive these credentials after all teams have been finalized. |
 
@@ -243,23 +283,38 @@ export CONTAINER_REPO_TOKEN="<your-token>"
 echo $CONTAINER_REPO_TOKEN | docker login ghcr.io -u <your-username> --password-stdin
 ```
 
-Go to `https://github.com/<your-username>/flytelab/pkgs/container/flytelab`
-and you should see a package called `flytelab`, then:
-
-1. Click **Add Repository** to link your fork of the `flytelab` repo.
-2. Scroll down to the **Danger Zone**, click **Change visibility**, and make the package public.
-
 Then, deploying to the playground is as simple as:
 
 ```
 python deploy.py --remote
 ```
 
-Go to https://playground.hosted.unionai.cloud, authenticate with your union.ai playground
+<details>
+
+<summary>ℹ What just happened?</summary>
+
+The `python deploy.py --remote` command just did the following:
+
+1. Built a docker image specified in your project's `Dockerfile`.
+2. Pushed the image to the github container registry under your username's package namespace.
+3. `flytekit` serializes your tasks and workflows into a `flyte-package.tgz` file.
+4. `flytectl` registers those Flyte-compatible artifacts to the playground cluster.
+
+</details>
+
+Go to `https://github.com/<your-username>/flytelab/pkgs/container/flytelab`
+and you should see a package called `flytelab`, then:
+
+1. Click **Add Repository** to link your fork of the `flytelab` repo.
+2. Scroll down to the **Danger Zone**, click **Change visibility**, and make the package public.
+
+Finally, go to https://playground.hosted.unionai.cloud, authenticate with your union.ai playground
 `username` and `password`, where you can navigate to your `flytelab-<project-name>` project
 to run your workflows.
 
-<!-- TODO: add instructions for fast registration -->
+| **📝 Note** |
+|:---------|
+| Fast registering is currently not enabled in the Union.ai playground. |
 
 
 ## 💻 Streamlit App [Optional]
