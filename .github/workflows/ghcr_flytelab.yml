@@ -11,6 +11,7 @@ on:
 
 jobs:
   push-github:
+    if: ${{ github.repository_owner }} == 'flyteorg'
     name: Push to GHCR
     runs-on: ubuntu-latest
     defaults:

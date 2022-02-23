@@ -71,7 +71,7 @@ cookiecutter templates/basic -o projects
 Answer the project setup questions:
 
 ```
-project_name: my_project          # replace this with your project name (can only contain alphanumeric characters, `.`, and `_`)
+project_name: my_project          # replace this with your project name (can only contain alphanumeric characters and `_`)
 project_author: foobar            # replace this with your name
 github_username: my_username      # replace this with your github username
 description: project description  # optional
@@ -239,8 +239,8 @@ Make sure to give your PAT [read and write access to packages](https://docs.gith
 Then authenticate to the `ghcr.io` registry:
 
 ```bash
-export CR_PAT="<your-token>"
-echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
+export CONTAINER_REPO_TOKEN="<your-token>"
+echo $CONTAINER_REPO_TOKEN | docker login ghcr.io -u <your-username> --password-stdin
 ```
 
 Go to `https://github.com/<your-username>/flytelab/pkgs/container/flytelab`

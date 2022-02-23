@@ -1,7 +1,7 @@
 import re
 import sys
 
-PROJECT_NAME_REGEX = "^[a-zA-Z0-9._]+$"
+PROJECT_NAME_REGEX = r'^[_a-zA-Z][_a-zA-Z0-9]+$'
 
 project_name = '{{ cookiecutter.project_name }}'
 
