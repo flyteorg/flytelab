@@ -26,6 +26,8 @@ own set of dependencies.
 - [Create a New Project](#-create-a-new-project)
 - [Environment Setup](#-environment-setup)
 - [Deployment](#-deployment)
+  - [Sandbox Deployment](#sandbox-deployment)
+  - [Union.ai Playground Deployment](#unionai-playground-deployment)
 - [Streamlit App [Optional]](#-streamlit-app-optional)
 
 ## 🚀 Create a New Project
@@ -145,22 +147,30 @@ Then install `flytectl`:
 
 <details>
 
-<summary>OSX</summary>
+<summary>💻 OSX</summary>
+
+---
 
 ```bash
 brew install flyteorg/homebrew-tap/flytectl
 ```
 
+---
+
 </details>
 
 <details>
 
-<summary>Other Operating Systems</summary>
+<summary>💻 Other Operating Systems</summary>
+
+---
 
 ```bash
 curl -sL https://ctl.flyte.org/install | sudo bash -s -- -b /usr/local/bin # You can change path from /usr/local/bin to any file system path
 export PATH=$(pwd)/bin:$PATH # Only required if user used different path then /usr/local/bin
 ```
+
+---
 
 </details>
 
@@ -176,6 +186,8 @@ flytectl sandbox start --source .
 
 <summary>ℹ Interacting with Flyte sandbox</summary>
 
+---
+
 Get the status of sandbox:
 
 ```
@@ -187,6 +199,8 @@ Teardown the sandbox:
 ```
 flytectl sandbox teardown
 ```
+
+---
 
 </details>
 
@@ -204,7 +218,9 @@ python deploy.py
 
 <details>
 
-<summary>Expected output</summary>
+<summary>ℹ Expected output</summary>
+
+---
 
 You should see something like:
 
@@ -225,9 +241,13 @@ Registering Flyte workflows
 4 rows
 ```
 
+---
+
 </details>
 
 <details>
+
+---
 
 <summary>ℹ What just happened?</summary>
 
@@ -236,6 +256,8 @@ The `python deploy.py` command just did the following:
 1. Built a docker image specified in your project's `Dockerfile` from within the sandbox docker container.
 2. `flytekit` serializes your tasks and workflows into a `flyte-package.tar.gz` file.
 3. `flytectl` registers those Flyte-compatible artifacts to the playground cluster.
+
+---
 
 </details>
 
@@ -291,6 +313,8 @@ python deploy.py --remote
 
 <details>
 
+---
+
 <summary>ℹ What just happened?</summary>
 
 The `python deploy.py --remote` command just did the following:
@@ -299,6 +323,8 @@ The `python deploy.py --remote` command just did the following:
 2. Pushed the image to the github container registry under your username's package namespace.
 3. `flytekit` serializes your tasks and workflows into a `flyte-package.tgz` file.
 4. `flytectl` registers those Flyte-compatible artifacts to the playground cluster.
+
+---
 
 </details>
 
