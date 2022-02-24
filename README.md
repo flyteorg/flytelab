@@ -105,9 +105,9 @@ Go into the project directory, then create your project's virtual environment:
 ```bash
 cd projects/my_project
 
-# create and activate virtual environment, name my_env whatever your want
-python -m venv ~/venvs/my_env
-source ~/venvs/my_env/bin/activate
+# create and activate virtual environment, name the venv whatever you want
+python -m venv ~/venvs/my_project
+source ~/venvs/my_project/bin/activate
 
 # install requirements
 pip install -r requirements.txt -r requirements-dev.txt
