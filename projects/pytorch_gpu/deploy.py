@@ -14,9 +14,9 @@ docker_client = docker.from_env()
 
 
 IMAGE_NAME = "flytelab"
-REGISTRY = "ghcr.io/{{cookiecutter.github_username}}".lower()
-PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-").lower()
-DESCRIPTION = "{{cookiecutter.description}}"
+REGISTRY = "ghcr.io/cosmicBboy".lower()
+PROJECT_NAME = "flytelab-pytorch_gpu".replace("_", "-").lower()
+DESCRIPTION = "A flytelab project"
 
 
 def create_project(remote: bool):
@@ -122,7 +122,7 @@ def serialize(tag: str, remote: bool, fast: bool):
         [
             "pyflyte",
             "-c", str(config),
-            "--pkgs", "{{cookiecutter.project_name}}",
+            "--pkgs", "pytorch_gpu",
             "package",
             "--force",
             "--image", tag,
