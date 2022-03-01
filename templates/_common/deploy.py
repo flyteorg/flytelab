@@ -133,6 +133,8 @@ def serialize(tag: str, remote: bool, fast: bool):
             ),
         ],
         check=True,
+        # inject the FLYTE_SANDBOX environment variable to the serialization runtime
+        env={"FLYTE_SANDBOX": "1" if not remote else "0", **os.environ},
     )
 
 

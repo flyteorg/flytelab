@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import torch
@@ -9,8 +11,19 @@ from sklearn.datasets import load_digits
 from flytekit import task, workflow, Resources
 
 
-resources = Resources(gpu="1", mem="4Gi", storage="4Gi", ephemeral_storage="1Gi")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+dataset_resources = Resources(cpu="1", mem="1Gi", storage="1Gi")
+
+# This conditional is used at deployment time to determine whether the
+# task uses CPUs or GPUs. The "FLYTE_SANDBOX" environment variable is
+# automatically set by the `deploy.py` script when serializing tasks/workflows
+training_resources = (
+    Resources(cpu="1", mem="1Gi", storage="1Gi")
+    if int(os.getenv("FLYTE_SANDBOX", "0"))
+    else Resources(gpu="1", mem="4Gi", storage="4Gi")
+)
+
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Model(nn.Module):
@@ -26,7 +39,7 @@ class Model(nn.Module):
         return F.log_softmax(self.layer3(x))
 
 
-@task
+@task(requests=dataset_resources, limits=dataset_resources)
 def get_dataset() -> pd.DataFrame:
     return load_digits(as_frame=True).frame
 
@@ -34,12 +47,12 @@ def get_dataset() -> pd.DataFrame:
 def dataset_iterator(features, target, n_batches: int):
     for X, y in zip(np.array_split(features, n_batches), np.array_split(target, n_batches)):
         yield (
-            torch.from_numpy(X.values).float().to(device),
-            torch.from_numpy(y.values).long().to(device)
+            torch.from_numpy(X.values).float().to(DEVICE),
+            torch.from_numpy(y.values).long().to(DEVICE)
         )
 
 
-@task(requests=resources, limits=resources)
+@task(requests=training_resources, limits=training_resources)
 def train_model(
     dataset: pd.DataFrame,
     hidden_dim: int,
@@ -51,14 +64,14 @@ def train_model(
 
     # define the model
     n_classes = target.nunique()
-    model = Model(features.shape[1], hidden_dim, n_classes).to(device)
+    model = Model(features.shape[1], hidden_dim, n_classes).to(DEVICE)
     opt = optim.SGD(model.parameters(), lr=learning_rate)
 
     # iterate through n_epochs and n_batches of the training data
     n_batches = int(features.shape[0] / batch_size)
     for epoch in range(1, n_epochs + 1):
         for batch, (X, y) in enumerate(dataset_iterator(features, target, n_batches), 1):
-            
+
             opt.zero_grad()
             y_hat = model(X)
             loss = F.nll_loss(y_hat, y)
@@ -73,7 +86,7 @@ def train_model(
                 f"loss={loss.item():0.04f}; "
                 f"accuracy={accuracy:0.04f}"
             )
-    
+
     return model.to("cpu")
 
 
