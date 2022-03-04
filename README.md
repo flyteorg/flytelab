@@ -76,12 +76,13 @@ Answer the project setup questions:
 project_name: my_project          # replace this with your project name (can only contain alphanumeric characters and `_`)
 project_author: foobar            # replace this with your name
 github_username: my_username      # replace this with your github username
-description: project description  # optional
+flyte_project: my_flyte_project   # [optional]
+description: project description  # [optional]
 ```
 
 | **📝 Note** |
 |:---------|
-| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name. |
+| For [MLOps Community Engineering Labs Hackathon](https://flyte.org/hackathon/) participants: `project_author` should be your team name, and `flyte_project` should be left as the default value. |
 
 The project structure looks like the following:
 ```bash
