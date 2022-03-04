@@ -328,8 +328,7 @@ The `python deploy.py --remote` command just did the following:
 
 </details>
 
-Go to `https://github.com/<your-username>/flytelab/pkgs/container/flytelab`
-and you should see a package called `flytelab`, then:
+Go to `https://github.com/users/<your-username>/packages/container/flytelab/settings`, and then:
 
 1. Click **Add Repository** to link your fork of the `flytelab` repo.
 2. Scroll down to the **Danger Zone**, click **Change visibility**, and make the package public.
@@ -357,6 +356,10 @@ pip install streamlit
 ```
 streamlit run dashboard/app.py
 ```
+
+| **📝 Note** |
+|:---------|
+| For the given example, make sure to run the workflow at least once before spinning up the streamlit server. |
 
 ### Run App Locally against Union.ai Playground Cluster
 
