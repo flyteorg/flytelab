@@ -18,7 +18,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 importlib.import_module("{{cookiecutter.project_name}}")
 
 
-PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
+PROJECT_NAME = "{{cookiecutter.flyte_project}}"
 WORKFLOW_NAME = "{{cookiecutter.project_name}}.workflows.main"
 
 
