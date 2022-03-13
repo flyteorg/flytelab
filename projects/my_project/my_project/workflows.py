@@ -14,7 +14,8 @@ imputer_cat = SimpleImputer(strategy="most_frequent")
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.metrics import roc_auc_score
 from flytekit import task, workflow
-
+from joblib import dump
+from sklearn.preprocessing import OneHotEncoder
 
 @task
 def get_dataset() -> pd.DataFrame:
@@ -24,8 +25,9 @@ def get_dataset() -> pd.DataFrame:
     download = requests.get(url).content
     df = pd.read_csv(io.StringIO(download.decode('utf-8')),sep=',')
     print("df is created",df.columns)
-    df.dropna(inplace=True)
-    df = df.reset_index()
+    #df.dropna(inplace=True)
+    #df = df.reset_index()
+    print(df.columns)
     return(df)
 
 
@@ -52,6 +54,12 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
         print(X.shape)
         return(imputer_cat.fit_transform(X))
         #return X.apply(lambda col: imputer_cat.fit_transform(col))  
+    def one_hot_encode(X):
+        print("one hot encode")
+        ohe = OneHotEncoder(handle_unknown = 'ignore')
+        ohe.fit(pd.DataFrame(X))
+        dump(ohe, 'onehot.joblib') 
+        return ohe.transform(pd.DataFrame(X)).toarray()
 
     log_transform_pipeline = Pipeline([
     ('get_log_transform_cols', FunctionTransformer(get_log_transform_cols, validate=False)),
@@ -68,7 +76,8 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
     cat_cols_pipeline = Pipeline([
     ('get_cat_cols', FunctionTransformer(get_cat_cols, validate=False)),
     ('imputer', SimpleImputer(strategy="most_frequent")),
-    ('get_dummies', FunctionTransformer(get_dummies, validate=False))
+#    ('get_dummies', FunctionTransformer(get_dummies, validate=False))
+    ('one_hot_encode', FunctionTransformer(one_hot_encode, validate=False))
     ])       
 
     steps_ = FeatureUnion([
@@ -83,6 +92,7 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
     X_train, X_test, y_train, y_test = train_test_split(X, y)
     X_train = np.nan_to_num(X_train)
     y_train=np.nan_to_num(y_train)
+    print("X_train dimensiona",X_train)
     return model.fit(X_train, y_train)
 
 
