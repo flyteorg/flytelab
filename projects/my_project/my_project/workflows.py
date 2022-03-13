@@ -66,10 +66,6 @@ def train_model(train: pd.DataFrame) -> Tuple[AdaBoostClassifier,OneHotEncoder]:
         global hi
         hi=ohe
         dump(ohe, 'onehot.joblib') 
-        import subprocess
-        subprocess.call(["git", "add","."])
-        subprocess.call(["git", "commit","-m","kfbjebfe"])
-        subprocess.call(["git", "push"])
         return ohe.transform(pd.DataFrame(X)).toarray()
 
     log_transform_pipeline = Pipeline([
