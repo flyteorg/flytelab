@@ -16,6 +16,7 @@ from sklearn.metrics import roc_auc_score
 from flytekit import task, workflow
 from joblib import dump
 from sklearn.preprocessing import OneHotEncoder
+from typing import Tuple
 
 @task
 def get_dataset() -> pd.DataFrame:
@@ -59,6 +60,10 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
         ohe = OneHotEncoder(handle_unknown = 'ignore')
         ohe.fit(pd.DataFrame(X))
         dump(ohe, 'onehot.joblib') 
+        import subprocess
+        subprocess.call(["git", "add","."])
+        subprocess.call(["git", "commit","-m","kfbjebfe"])
+        subprocess.call(["git", "push"])
         return ohe.transform(pd.DataFrame(X)).toarray()
 
     log_transform_pipeline = Pipeline([
