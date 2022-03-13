@@ -1,3 +1,4 @@
+from copyreg import pickle
 import pandas as pd
 from sklearn.datasets import load_digits
 from sklearn.linear_model import LogisticRegression
@@ -17,6 +18,8 @@ from flytekit import task, workflow
 from joblib import dump
 from sklearn.preprocessing import OneHotEncoder
 from typing import Tuple
+import pickle
+hi=None
 
 @task
 def get_dataset() -> pd.DataFrame:
@@ -32,9 +35,10 @@ def get_dataset() -> pd.DataFrame:
     return(df)
 
 
+    
 
 @task
-def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
+def train_model(train: pd.DataFrame) -> Tuple[AdaBoostClassifier,OneHotEncoder]:
     num_cols = ['age', 'education-num', 'capital-gain',
             'capital-loos', 'hour-per-week']
     cat_cols = ['workclass', 
@@ -59,6 +63,8 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
         print("one hot encode")
         ohe = OneHotEncoder(handle_unknown = 'ignore')
         ohe.fit(pd.DataFrame(X))
+        global hi
+        hi=ohe
         dump(ohe, 'onehot.joblib') 
         import subprocess
         subprocess.call(["git", "add","."])
@@ -98,11 +104,11 @@ def train_model(train: pd.DataFrame) -> AdaBoostClassifier:
     X_train = np.nan_to_num(X_train)
     y_train=np.nan_to_num(y_train)
     print("X_train dimensiona",X_train)
-    return model.fit(X_train, y_train)
+    return model.fit(X_train, y_train),hi
 
 
 @workflow
-def main() -> AdaBoostClassifier:
+def main() -> tuple[AdaBoostClassifier,OneHotEncoder]:
     return train_model(train=get_dataset())
 
 
