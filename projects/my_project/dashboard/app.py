@@ -146,7 +146,7 @@ def cat_imputer(X):
 def one_hot_encode(X):
     print(X.shape)
     print("current wd",os.getcwd())
-    ohe = load('onehot.joblib')
+    ohe = load(encoder)
     return ohe.transform(pd.DataFrame(X)).toarray()
 
 log_transform_pipeline = Pipeline([
