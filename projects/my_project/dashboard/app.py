@@ -182,7 +182,8 @@ steps_ = FeatureUnion([
 ])
 full_pipeline = Pipeline([('steps_', steps_)])
 X_train = full_pipeline.fit_transform(X_train)
-y_pred=model.predict_proba(X_train)
+y_pred=model.predict_proba(X_train)[:, 1]
+
 final = y_pred[0]
 
 #X_train=np.array(X_train)
