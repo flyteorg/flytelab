@@ -112,9 +112,20 @@ education_level=st.text_input("education_level", "Bachelors")
 
 #st.write("Use the slider below to select a sample for prediction")
 
-dict_val = {'age':age, 'workclass':workclass,  'education_num':education_num,'education_level':education_level,
-       'martial_status':marital_status, 'occupation':occupation, 'relationship':relationship, 'race':race, 'sex':sex,
-       'capital-gain':capital_gain, 'capital_loos':capital_loos, 'hour_per_week':hour_per_week, 'native_country':native_country}
+dict_val = {'age': age,
+ 'workclass': workclass,
+ 'education_level': education_level,
+ 'education-num':education_num,
+ 'marital-status': marital_status,
+ 'occupation': occupation,
+ 'relationship': relationship,
+ 'race': race,
+ 'sex': sex,
+ 'capital-gain':capital_gain,
+ 'capital-loss': capital_loos,
+ 'hours-per-week': hour_per_week,
+ 'native-country': native_country
+ }
        
 
 X_train = pd.DataFrame(dict_val,index=[0])
