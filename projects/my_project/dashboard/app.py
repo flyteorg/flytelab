@@ -90,13 +90,7 @@ print("\n one encoder \n",encoder)
 ############
 
 #data = load_digits(as_frame=True)
-url = "https://github.com/smadarab/flytelab/raw/main/census.csv" # Make sure the url is the raw version of the file on GitHub
-download = requests.get(url).content
-df = pd.read_csv(io.StringIO(download.decode('utf-8')),sep=',')
-print("df is created",df.columns)
-df.dropna(inplace=True)
-df = df.reset_index()
-data=df
+
 
 st.write("# Flytelab: my_project")
 st.write("### Demo project")
@@ -114,21 +108,23 @@ relationship = st.text_input("relationship", "Husband")
 race = st.text_input("race", "White")
 sex = st.text_input("sex", "Male")
 native_country = st.text_input("native-country", "United-States")
+education_level=st.text_input("education_level", "Bachelors")
 
 #st.write("Use the slider below to select a sample for prediction")
 
-X_train = [age, education_num, capital_gain, capital_loos, hour_per_week, workclass,
-            marital_status, occupation, relationship, race, sex, native_country]
+dict_val = {'age':age, 'workclass':workclass,  'education_num':education_num,'education_level':education_level,
+       'martial_status':marital_status, 'occupation':occupation, 'relationship':relationship, 'race':race, 'sex':sex,
+       'capital-gain':capital_gain, 'capital_loos':capital_loos, 'hour_per_week':hour_per_week, 'native_country':native_country}
+       
 
-X_train = pd.DataFrame({'age': age, 'education_num': education_num,'capital-gain':capital_gain,'capital_loos':capital_loos,'hour_per_week':hour_per_week,'workclass':workclass,'martial_status':marital_status,'occupation':occupation,'relationship':relationship,'race':race,'sex':sex,'native_country':native_country},index=[0])
-
-num_cols = ['age', 'education_num', 'capital-gain',
-            'capital_loos', 'hour_per_week']
+X_train = pd.DataFrame(dict_val,index=[0])
+num_cols = ['age', 'education-num', 'capital-gain',
+            'capital-loss', 'hours-per-week']
 cat_cols = ['workclass', 
-            'martial_status', 'occupation', 
+            'marital-status', 'occupation', 
             'relationship', 'race', 
-            'sex', 'native_country']
-log_transform_cols = ['capital_loos', 'capital-gain']    
+            'sex', 'native-country']
+log_transform_cols = ['capital-loss', 'capital-gain']      
 def get_cat_cols(X):
     return X[cat_cols]
 def get_num_cols(X):
