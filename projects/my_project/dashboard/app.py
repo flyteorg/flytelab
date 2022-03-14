@@ -175,9 +175,13 @@ steps_ = FeatureUnion([
 ])
 full_pipeline = Pipeline([('steps_', steps_)])
 X_train = full_pipeline.fit_transform(X_train)
-
+y_pred=model.predict_proba(X_train)
+if (y_pred.max())> 0.5:
+    final =1
+elif     (y_pred.max())< 0.5:
+    final=0
 
 #X_train=np.array(X_train)
 #st.image(data.images[sample_index], clamp=True, width=300)
 #st.write(f"Ground Truth: {data.target[sample_index]}")
-st.write(f"Prediction: {model.predict_proba(X_train)}")
+st.write(f"Prediction: {final}")
