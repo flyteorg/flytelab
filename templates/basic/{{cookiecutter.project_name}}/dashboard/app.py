@@ -11,7 +11,7 @@ from flytekit.models.admin.common import Sort
 from sklearn.datasets import load_digits
 
 
-PROJECT_NAME = "flytelab-{{cookiecutter.project_name}}".replace("_", "-")
+PROJECT_NAME = "{{cookiecutter.flyte_project}}"
 WORKFLOW_NAME = "{{cookiecutter.project_name}}.workflows.main"
 
 

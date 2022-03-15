@@ -1,5 +1,7 @@
 # Repo-specific
-env/**/*
+projects/**/.config
+projects/**/.kube
+.env/**/*
 env.txt
 .cache/*
 .vscode

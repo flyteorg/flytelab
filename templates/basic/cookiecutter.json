@@ -2,5 +2,6 @@
     "project_name": null,
     "project_author": null,
     "github_username": null,
+    "flyte_project": "{{ cookiecutter.project_author|lower|replace(' ', '-')|replace('_', '-') }}",
     "description": "A flytelab project"
 }
