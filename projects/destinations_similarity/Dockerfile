@@ -30,7 +30,7 @@ ENV PATH="${VENV}/bin:$PATH"
 COPY requirements.txt /root
 RUN pip install -r /root/requirements.txt
 
-COPY app /root/destinations_similarity
+COPY destinations_similarity /root/destinations_similarity
 COPY $config /root/flyte.config
 
 # This image is supplied by the build script and will be used to determine the version

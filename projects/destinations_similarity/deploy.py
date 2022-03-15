@@ -1,4 +1,6 @@
+import os
 import subprocess
+import uuid
 from pathlib import Path
 
 import docker
@@ -13,8 +15,8 @@ docker_client = docker.from_env()
 
 IMAGE_NAME = "flytelab"
 REGISTRY = "ghcr.io/patrickfbraz@poli.ufrj.br".lower()
-PROJECT_NAME = "flytelab-destinations_similarity".replace("_", "-")
-DESCRIPTION = "A flytelab project"
+PROJECT_NAME = "vamos-dalhe"
+DESCRIPTION = "Hurb project to the Flyte Hackathon"
 
 
 def create_project(remote: bool):
@@ -28,6 +30,7 @@ def create_project(remote: bool):
             "--config", config,
         ],
         capture_output=True,
+        check=True,
     )
     if output.stdout.decode().strip():
         return
@@ -43,14 +46,19 @@ def create_project(remote: bool):
             "--id", PROJECT_NAME,
             "--description", DESCRIPTION,
             "--config", config,
-        ]
+        ],
+        check=True,
     )
 
 
-def get_version():
+def get_version(fast: bool):
     repo = git.Repo(".", search_parent_directories=True)
-    if repo.is_dirty():
-        typer.echo("Please commit git changes before building", err=True)
+    if not fast and repo.is_dirty():
+        typer.echo(
+            "Please commit git changes before building. If you haven't updated any system/python dependencies "
+            "but want to deploy task/workflow code changes, use the --fast flag to do fast registration.",
+            err=True
+        )
         raise typer.Exit(code=1)
     commit = repo.rev_parse("HEAD")
     return commit.hexsha
@@ -62,17 +70,20 @@ def get_tag(version, registry=None):
 
 def sandbox_docker_build(tag):
     typer.echo("Building image in Flyte sandbox")
-    subprocess.run([
-        "flytectl",
-        "sandbox",
-        "exec",
-        "--",
-        "docker",
-        "build",
-        ".",
-        "--tag",
-        tag,
-    ])
+    subprocess.run(
+        [
+            "flytectl",
+            "sandbox",
+            "exec",
+            "--",
+            "docker",
+            "build",
+            ".",
+            "--tag",
+            tag,
+        ],
+        check=True,
+    )
 
 
 def docker_build(tag: str, remote: bool) -> docker.models.images.Image:
@@ -101,46 +112,72 @@ def docker_push(image: docker.models.images.Image):
         typer.echo(line)
 
 
-def serialize(tag: str):
+def serialize(tag: str, remote: bool, fast: bool):
     typer.echo("Serializing Flyte workflows")
-    subprocess.run([
-        "pyflyte",
-        "-c", "flyte.config",
-        "--pkgs", "destinations_similarity",
-        "package",
-        "--force",
-        "--in-container-source-path", "/root",
-        "--image", tag
-    ])
+    config = Path(".flyte") / f"{'remote' if remote else 'sandbox'}.config"
+    package = Path(".") / "flyte-package.tgz"
+    if package.exists():
+        os.remove(package)
+    subprocess.run(
+        [
+            "pyflyte",
+            "-c", str(config),
+            "--pkgs", "destinations_similarity",
+            "package",
+            "--force",
+            "--image", tag,
+            *(
+                ["--fast"]
+                if fast
+                else ["--in-container-source-path", "/root"]
+            ),
+        ],
+        check=True,
+        # inject the FLYTE_SANDBOX environment variable to the serialization runtime
+        env={"FLYTE_SANDBOX": "1" if not remote else "0", **os.environ},
+    )
 
 
-def register(version: str, remote: bool, domain: str):
+def register(version: str, remote: bool, fast: bool, domain: str):
     typer.echo("Registering Flyte workflows")
     config = Path(".flyte") / f"{'remote' if remote else 'sandbox'}-config.yaml"
-    subprocess.run([
-        "flytectl",
-        "-c", config,
-        "register",
-        "files",
-        "--project", PROJECT_NAME,
-        "--domain", domain,
-        "--archive", "flyte-package.tgz",
-        "--force",
-        "--version", version
-    ])
+    if fast:
+        version = f"{version}-fast{uuid.uuid4().hex[:7]}"
+    subprocess.run(
+        [
+            "flytectl",
+            "-c", config,
+            "register",
+            "files",
+            "--project", PROJECT_NAME,
+            "--domain", domain,
+            "--archive", "flyte-package.tgz",
+            "--force",
+            "--version", version
+        ],
+        check=True,
+    )
+    typer.echo(f"Successfully registered version {version}")
 
 
 @app.command()
-def main(remote: bool = False, domain: str = "development", registry: str = None):
+def main(remote: bool = False, fast: bool = False, domain: str = "development", registry: str = None):
+    if remote and fast:
+        typer.echo(
+            "Fast registration is not enabled when deploying to remote. "
+            "Please deploy your workflows without the --fast flag.",
+            err=True
+        )
     create_project(remote)
-    version = get_version()
+    version = get_version(fast)
     tag = get_tag(version, registry)
-    if remote:
-        docker_push(docker_build(tag, remote))
-    else:
-        sandbox_docker_build(tag)
-    serialize(tag)
-    register(version, remote, domain)
+    if not fast:
+        if remote:
+            docker_push(docker_build(tag, remote))
+        else:
+            sandbox_docker_build(tag)
+    serialize(tag, remote, fast)
+    register(version, remote, fast, domain)
 
 
 if __name__ == "__main__":

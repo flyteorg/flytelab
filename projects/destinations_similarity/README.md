@@ -1,3 +1,3 @@
 # destinations_similarity
 
-A flytelab project
+Hurb project to the Flyte Hackathon

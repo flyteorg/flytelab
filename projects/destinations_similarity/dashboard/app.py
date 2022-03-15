@@ -11,7 +11,7 @@ from flytekit.models.admin.common import Sort
 from sklearn.datasets import load_digits
 
 
-PROJECT_NAME = "flytelab-destinations_similarity".replace("_", "-")
+PROJECT_NAME = "vamos-dalhe"
 WORKFLOW_NAME = "destinations_similarity.workflows.main"
 
 
@@ -53,7 +53,7 @@ print(model)
 data = load_digits(as_frame=True)
 
 st.write("# Flytelab: destinations_similarity")
-st.write("### A flytelab project")
+st.write("### Hurb project to the Flyte Hackathon")
 st.write(f"Model: `{model}`")
 
 st.write("Use the slider below to select a sample for prediction")
