@@ -1,4 +1,2 @@
 flytekit>=0.30.3
-pandas
-s3fs
-sklearn
+google-cloud-storage==1.43.0

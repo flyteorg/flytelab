@@ -1,26 +1,16 @@
-import pandas as pd
-from sklearn.datasets import load_digits
-from sklearn.linear_model import LogisticRegression
+"""Workflows for the destinations_similarity Flyte project."""
 
-from flytekit import task, workflow
+from flytekit import workflow
 
-
-@task
-def get_dataset() -> pd.DataFrame:
-    return load_digits(as_frame=True).frame
-
-
-@task
-def train_model(dataset: pd.DataFrame) -> LogisticRegression:
-    model = LogisticRegression()
-    features, target = dataset[[x for x in dataset if x != "target"]], dataset["target"]
-    return model.fit(features, target)
+from destinations_similarity import tasks
 
 
 @workflow
-def main() -> LogisticRegression:
-    return train_model(dataset=get_dataset())
+def train_model() -> dict:
+    """Train a clusterization model from a dataset."""
+    _ = tasks.get_dataset_from_bucket(
+        bucket='dsc_public', file_path='my/file/path.csv')
 
 
 if __name__ == "__main__":
-    print(f"trained model: {main()}")
+    print(f"trained model: {train_model()}")
