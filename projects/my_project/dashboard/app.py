@@ -112,18 +112,18 @@ education_level=st.text_input("education_level", "Bachelors")
 
 #st.write("Use the slider below to select a sample for prediction")
 
-dict_val = {'age': age,
+dict_val = {'age': int(age),
  'workclass': workclass,
  'education_level': education_level,
- 'education-num':education_num,
+ 'education-num':float(education_num),
  'marital-status': marital_status,
  'occupation': occupation,
  'relationship': relationship,
  'race': race,
  'sex': sex,
- 'capital-gain':capital_gain,
- 'capital-loss': capital_loos,
- 'hours-per-week': hour_per_week,
+ 'capital-gain':float(capital_gain),
+ 'capital-loss': float(capital_loos),
+ 'hours-per-week': float(hour_per_week),
  'native-country': native_country
  }
        
