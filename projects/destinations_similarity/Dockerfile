@@ -1,39 +1,49 @@
+# syntax=docker/dockerfile:1
+
+# Dockerfile that sets up the Flyte image
+
 FROM python:3.9-slim-buster
 
-WORKDIR /root
-ENV VENV /opt/venv
-ENV LANG C.UTF-8
-ENV LC_ALL C.UTF-8
-ENV PYTHONPATH /root
+# Defining environment variables
+ENV APPUSER="flyte"
+ENV LANG="C.UTF-8"
+ENV LC_ALL="C.UTF-8"
+ENV PATH="/home/${APPUSER}/.local/bin:${PATH}"
+ENV PYTHONPATH="/home/${APPUSER}:${PYTHONPATH}"
 
-# e.g. flyte.config or sandbox.config
-ARG config
-
+# Updating and cleaning system
 RUN apt-get update && \
-    apt-get install -y \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    ffmpeg \
-    build-essential
+    apt-get upgrade -y && \
+    apt-get install -y build-essential git && \
+    apt-get autoremove -yqq --purge && \
+    apt-get clean
 
-# Install the AWS cli separately to prevent issues with boto being written over
-RUN pip3 install awscli
+# Changing the user so that the container is non-root
+RUN useradd -u 1024 -m "${APPUSER}"
+USER "${APPUSER}"
+WORKDIR "/home/${APPUSER}"
 
-ENV VENV /opt/venv
+# Setup virtual environment
+ENV VENV="/home/${APPUSER}/venv"
+RUN python -m venv ${VENV}
+ENV PATH="${VENV}/bin:${PATH}"
 
-# Virtual environment
-RUN python3 -m venv ${VENV}
-ENV PATH="${VENV}/bin:$PATH"
+# Install gsutil
+# RUN curl -sSL "https://sdk.cloud.google.com" | bash
+# ENV PATH="/home/${APPUSER}/google-cloud-sdk/bin:${PATH}"
 
-# Install Python dependencies
-COPY requirements.txt /root
-RUN pip install -r /root/requirements.txt
+# Copy requirements
+COPY requirements.txt "/home/${APPUSER}/requirements.txt"
 
-COPY destinations_similarity /root/destinations_similarity
-COPY $config /root/flyte.config
+# Upgrade pip, install dependencies and awscli
+RUN python -m pip install -U pip && \
+    pip install -r requirements.txt awscli
 
-# This image is supplied by the build script and will be used to determine the version
-# when registering tasks, workflows, and launch plans
-ARG image
-ENV FLYTE_INTERNAL_IMAGE $image
+# Copy the code and configuration
+COPY --chown="${APPUSER}:${APPUSER}" \
+    destinations_similarity/ "/home/${APPUSER}/destinations_similarity"
+COPY $config "/home/${APPUSER}/flyte.config"
+
+# Tag the image
+ARG tag
+ENV FLYTE_INTERNAL_IMAGE="$tag"
