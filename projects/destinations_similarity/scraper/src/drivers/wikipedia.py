@@ -3,6 +3,8 @@
 --
 """
 from typing import Dict, Union, Any
+
+import requests
 from requests import get
 from bs4 import BeautifulSoup
 
@@ -27,28 +29,39 @@ class WikipediaExtractor:
 
     @staticmethod
     def _get_html(citie: str) -> BeautifulSoup:
-        request = get(url=generate_wikipedia_url(citie))
-        if request.status_code not in [200,404]:
-            raise ValueError("Unexpected status code returned from url '%s'. Status returned: %s" %
-                             (generate_wikipedia_url(citie), request.status_code))
-        if request.status_code == 404:
-            return None
-        else:
-            return BeautifulSoup(request.text, "html.parser")
+        result = None
+        for retry in range(3):
+            request = get(url=generate_wikipedia_url(citie), timeout=30)
+            try:
+                if request.status_code not in [200, 404]:
+                    raise ValueError("Unexpected status code returned from url '%s'. Status returned: %s" %
+                                     (generate_wikipedia_url(citie), request.status_code))
+                if request.status_code == 404:
+                    break
+                else:
+                    result = BeautifulSoup(request.text, "html.parser")
+                    break
+            except requests.RequestException as error:
+                continue
+        return result
 
     def extract_by_name(self, citie_name: str, seach_name: str) -> Union[Dict[str, Any], None]:
         html_page = self._get_html(seach_name)
         if not html_page:
             return {"name": citie_name, "description": None, "images": None, "do": None, "next": None}
         try:
-            description = None
-            citie_images = None
-            paragraphs = html_page.findAll("p")
-            if paragraphs and len(paragraphs) > 1:
-                description = paragraphs[1].text
-            images = html_page.findAll("img")
-            if images:
-                citie_images = [format_image_url(img.get("src")) for img in images]
-            return {"name": citie_name, "description": description, "images": citie_images, "do": None, "next": None}
+            main_page = html_page.find("div", attrs={"class": "mw-parser-output"})
+            description = ""
+            citie_images = []
+            first_header_found = False
+            for element in main_page.findAllNext(recursive=False):
+                if not first_header_found:
+                    if element.name == "p":
+                        description += element.text + "\n"
+                    if element.name == "h2":
+                        first_header_found = True
+                if element.name == "img":
+                    citie_images.append(format_image_url(element.get("src")))
+            return {"name": citie_name, "description": description.strip(), "images": citie_images, "do": None, "next": None}
         except Exception as error:
             raise RuntimeError("Unexpected error occurred in extracting %s information" % citie_name) from error
