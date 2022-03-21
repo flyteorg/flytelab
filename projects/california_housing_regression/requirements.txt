@@ -1,0 +1,7 @@
+flytekit>=0.30.3
+flytekitplugins-pandera
+pandas
+pandera[strategies]
+s3fs
+scipy
+sklearn

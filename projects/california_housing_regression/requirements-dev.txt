@@ -1,0 +1,6 @@
+docker
+gitpython
+hypothesis
+pytest
+streamlit
+typer
