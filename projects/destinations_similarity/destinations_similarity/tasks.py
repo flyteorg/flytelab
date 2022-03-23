@@ -1,14 +1,11 @@
 """Tasks for the destinations_similarity Flyte project."""
 
-import os
 import sys
 import logging
 
+import requests
 import pandas as pd
 from flytekit import task, Resources
-from sklearn.metrics import r2_score
-
-from destinations_similarity import utils
 
 
 # Logging config
@@ -20,43 +17,21 @@ logging.basicConfig(
     format="[%(asctime)s] %(name)s: %(levelname)s | %(message)s"
 )
 
-
-@task(cache=False, requests=Resources(cpu="1", mem="500Mi"))
-def get_dataset_from_bucket(bucket: str, file_path: str) -> pd.DataFrame:
-    """Retrieve dataset from GCS bucket and return it as a DataFrame.
-
-    Args:
-        bucket (str): The bucket name.
-        file_path (str): The path of the file on the bucket.
-
-    Returns:
-        pd.DataFrame: The dataset.
-    """
-    # Retrieving file
-    tmp_path = "/tmp/flyte/dataset.blob"
-    gcloud = utils.google.GoogleUtils()
-    gcloud.download_blob(bucket, file_path, tmp_path)
-
-    # Converting to pandas, converting columns to strs
-    result = pd.read_csv(tmp_path)
-    result.columns = result.columns.astype(str)
-
-    LOGGER.info("Dataset gs://%s/%s retrieved.", bucket, file_path)
-    os.remove(tmp_path)
-    return result
+# Flyte configuration
+BASE_RESOURCES = Resources(cpu="0.5", mem="500Mi")
 
 
-@task(cache=True, cache_version='1.0')
-def score_prediction(
-    y_true: pd.DataFrame, y_pred: pd.DataFrame,
-) -> float:
-    """Compute the R2 score from true and predicted values.
+@task(cache=False, requests=BASE_RESOURCES)
+def retrieve_dataset_from_remote(url: str) -> pd.DataFrame:
+    """Retrieve the dataset from a remote URL.
 
     Args:
-        y_true (DataFrame): The true values.
-        y_pred (DataFrame): The predicted values.
+        url (str): Remote address of the dataset, a Parquet file.
 
     Returns:
-        score (float): The R2 score.
+        pd.DataFrame: DataFrame with the dataset.
     """
-    return r2_score(y_true, y_pred)
+    dataset_parquet = requests.get(url, timeout=30)
+    dataset_df = pd.read_parquet(dataset_parquet)
+    LOGGER.info("Retrieved dataset from %s.", url)
+    return dataset_df
