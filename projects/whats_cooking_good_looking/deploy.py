@@ -12,8 +12,8 @@ docker_client = docker.from_env()
 
 
 IMAGE_NAME = "flytelab"
-REGISTRY = "ghcr.io/flyteorg"
-PROJECT_NAME = "flytelab-whats_cooking_good_looking".replace("_", "-")
+REGISTRY = "eu.gcr.io/flyte-sandbox-342013"
+PROJECT_NAME = "adorable-unicorns-23"
 DESCRIPTION = "TBD"
 
 
@@ -105,8 +105,8 @@ def serialize(tag: str):
     typer.echo("Serializing Flyte workflows")
     subprocess.run([
         "pyflyte",
-        "-c", "flyte.config",
-        "--pkgs", "whats_cooking_good_looking",
+        "-c", ".flyte/remote.config",
+        #"--pkgs", "whats_cooking_good_looking",
         "package",
         "--force",
         "--in-container-source-path", "/root",
@@ -122,7 +122,7 @@ def register(version: str, remote: bool, domain: str):
         "-c", config,
         "register",
         "files",
-        "--project", PROJECT_NAME,
+        "--project", "adorable-unicorns-23",
         "--domain", domain,
         "--archive", "flyte-package.tgz",
         "--force",

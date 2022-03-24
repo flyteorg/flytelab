@@ -1,9 +1,8 @@
 admin:
   # For GRPC endpoints you might want to use dns:///flyte.myexample.com
   endpoint: dns:///playground.hosted.unionai.cloud
-  authType: Pkce
+  authType: ClientSecret
   # Change insecure flag to ensure that you use the right setting for your environment
-  insecure: false
 storage:
   type: stow
   stow:

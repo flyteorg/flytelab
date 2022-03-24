@@ -12,7 +12,7 @@ def get_dataset() -> pd.DataFrame:
 
 @task
 def train_model(dataset: pd.DataFrame) -> LogisticRegression:
-    model = LogisticRegression(max_iter=500)
+    model = LogisticRegression(max_iter=496)
     features, target = dataset[[x for x in dataset if x != "target"]], dataset["target"]
     return model.fit(features, target)
 
