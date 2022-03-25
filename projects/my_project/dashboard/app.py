@@ -14,6 +14,28 @@ imputer_cat = SimpleImputer(strategy="most_frequent")
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.metrics import roc_auc_score
 from flytekit import task, workflow
+from copyreg import pickle
+import pandas as pd
+from sklearn.datasets import load_digits
+from sklearn.linear_model import LogisticRegression
+import requests
+import io
+import numpy as np
+from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.preprocessing import FunctionTransformer, MinMaxScaler
+from sklearn.impute import SimpleImputer
+imputer_num = SimpleImputer(missing_values=np.nan, strategy='mean')
+from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+imputer_cat = SimpleImputer(strategy="most_frequent")
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.metrics import roc_auc_score
+from flytekit import task, workflow
+from joblib import dump
+from sklearn.preprocessing import OneHotEncoder
+from typing import Tuple
+import pickle
+from sklearn.preprocessing import MinMaxScaler
 
 
 
@@ -83,7 +105,8 @@ model = wf_execution.outputs["o0"]
 print(model)
 encoder = wf_execution.outputs["o1"]
 print("\n one encoder \n",encoder)
-
+scaler = wf_execution.outputs["o2"]
+print("\n one encoder \n",encoder)
 
 ############
 # App Code #
@@ -96,22 +119,23 @@ st.write("# Flytelab: my_project")
 st.write("### Demo project")
 st.write(f"Model: `{model}`")
 
-age = st.text_input("age", 50)
-education_num = st.text_input("education-num", 13.0)
-capital_gain = st.text_input("capital-gain", 0.0)
-capital_loos = st.text_input("capital-loos", 0.0)
-hour_per_week = st.text_input("hour-per-week", 13.0)
-workclass = st.text_input("workclass", "Self-emp-not-inc")
-marital_status = st.text_input("marital-status", "Married-civ-spouse")
-occupation = st.text_input("occupation", "Exec-managerial")
-relationship = st.text_input("relationship", "Husband")
-race = st.text_input("race", "White")
-sex = st.text_input("sex", "Male")
-native_country = st.text_input("native-country", "United-States")
-education_level=st.text_input("education_level", "Bachelors")
+with st.form(key='my_form'):
+    age = st.number_input("age")
+    education_num = st.number_input("education-num")
+    capital_gain = st.number_input("capital-gain")
+    capital_loos = st.number_input("capital-loos")
+    hour_per_week = st.number_input("hour-per-week")
+    workclass = st.text_input("workclass", "Self-emp-not-inc")
+    marital_status = st.text_input("marital-status", "Married-civ-spouse")
+    occupation = st.text_input("occupation", "Exec-managerial")
+    relationship = st.text_input("relationship", "Husband")
+    race = st.text_input("race", "White")
+    sex = st.text_input("sex", "Male")
+    native_country = st.text_input("native-country", "United-States")
+    submit_button = st.form_submit_button(label='Submit')
 
 #st.write("Use the slider below to select a sample for prediction")
-
+'''
 dict_val = {'age': int(age),
  'workclass': workclass,
  'education_level': education_level,
@@ -125,23 +149,24 @@ dict_val = {'age': int(age),
  'capital-loss': float(capital_loos),
  'hours-per-week': float(hour_per_week),
  'native-country': native_country
- }
+ }'''
        
+X_train = pd.DataFrame({'age': age, 'education-num': education_num,'capital-gain':capital_gain,'capital-loss':capital_loos,'hours-per-week':hour_per_week,'workclass':workclass,'marital-status':marital_status,'occupation':occupation,'relationship':relationship,'race':race,'sex':sex,'native-country':native_country},index=[0])
 
-X_train = pd.DataFrame(dict_val,index=[0])
+
+#X_train = pd.DataFrame(dict_val,index=[0])
 num_cols = ['age', 'education-num', 'capital-gain',
-            'capital-loss', 'hours-per-week']
+        'capital-loss', 'hours-per-week']
 cat_cols = ['workclass', 
-            'marital-status', 'occupation', 
-            'relationship', 'race', 
-            'sex', 'native-country']
-log_transform_cols = ['capital-loss', 'capital-gain']      
+        'marital-status', 'occupation', 
+        'relationship', 'race', 
+        'sex', 'native-country']
+log_transform_cols = ['capital-loss', 'capital-gain']    
 def get_cat_cols(X):
     return X[cat_cols]
 def get_num_cols(X):
     return X[num_cols]
 def get_log_transform_cols(X):
-    print("in function",X.columns)
     return X[log_transform_cols]
 def get_dummies(X):
     print('\n \n',type(X))
@@ -151,10 +176,12 @@ def cat_imputer(X):
     return(imputer_cat.fit_transform(X))
     #return X.apply(lambda col: imputer_cat.fit_transform(col))  
 def one_hot_encode(X):
-    print(X.shape)
-    print("current wd",os.getcwd())
-    ohe = encoder
-    return ohe.transform(pd.DataFrame(X)).toarray()
+    print("one hot encode")
+    #dump(ohe, 'onehot.joblib') 
+    print(X)
+    return encoder.transform(pd.DataFrame(X)).toarray()
+def min_max_scaling(X):
+    return scaler.transform(pd.DataFrame(X)).tolist()
 
 log_transform_pipeline = Pipeline([
 ('get_log_transform_cols', FunctionTransformer(get_log_transform_cols, validate=False)),
@@ -165,13 +192,13 @@ log_transform_pipeline = Pipeline([
 num_cols_pipeline = Pipeline([
 ('get_num_cols', FunctionTransformer(get_num_cols, validate=False)),
 ('imputer', SimpleImputer(strategy='mean')),
-('min_max_scaler', MinMaxScaler())
+('min_max_scaler', FunctionTransformer(min_max_scaling, validate=False))
 ])
 
 cat_cols_pipeline = Pipeline([
 ('get_cat_cols', FunctionTransformer(get_cat_cols, validate=False)),
 ('imputer', SimpleImputer(strategy="most_frequent")),
-#('get_dummies', FunctionTransformer(get_dummies, validate=False))
+#    ('get_dummies', FunctionTransformer(get_dummies, validate=False))
 ('one_hot_encode', FunctionTransformer(one_hot_encode, validate=False))
 ])       
 
@@ -181,10 +208,11 @@ steps_ = FeatureUnion([
 ('cat_cols', cat_cols_pipeline)
 ])
 full_pipeline = Pipeline([('steps_', steps_)])
-X_train = full_pipeline.fit_transform(X_train)
-y_pred=model.predict_proba(X_train)[:, 1]
-
-final = y_pred[0]
+X = full_pipeline.fit_transform(train)
+   
+y_pred=model.predict_proba(X)
+final = y_pred
+st.write(f"Prediction: {X}")
 
 #X_train=np.array(X_train)
 #st.image(data.images[sample_index], clamp=True, width=300)
