@@ -1,3 +1,7 @@
+secrets/
+credentials/
+local_explo/
+
 # Repo-specific
 env/**/*
 env.txt
