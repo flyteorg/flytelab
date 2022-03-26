@@ -115,9 +115,10 @@ print("\n one encoder \n",encoder)
 #data = load_digits(as_frame=True)
 
 
-st.write("# Flytelab: my_project")
-st.write("### Demo project")
-st.write(f"Model: `{model}`")
+st.write("# Flytelab: Predict Potential Donator")
+st.write(f"## Team: Cubits")
+
+#st.write(f"Model: `{model}`")
 
 with st.form(key='my_form'):
     age = st.number_input("age")
@@ -134,22 +135,7 @@ with st.form(key='my_form'):
     native_country = st.text_input("native-country", "United-States")
     submit_button = st.form_submit_button(label='Submit')
 
-#st.write("Use the slider below to select a sample for prediction")
-'''
-dict_val = {'age': int(age),
- 'workclass': workclass,
- 'education_level': education_level,
- 'education-num':float(education_num),
- 'marital-status': marital_status,
- 'occupation': occupation,
- 'relationship': relationship,
- 'race': race,
- 'sex': sex,
- 'capital-gain':float(capital_gain),
- 'capital-loss': float(capital_loos),
- 'hours-per-week': float(hour_per_week),
- 'native-country': native_country
- }'''
+
        
 X_train = pd.DataFrame({'age': age, 'education-num': education_num,'capital-gain':capital_gain,'capital-loss':capital_loos,'hours-per-week':hour_per_week,'workclass':workclass,'marital-status':marital_status,'occupation':occupation,'relationship':relationship,'race':race,'sex':sex,'native-country':native_country},index=[0])
 
@@ -208,13 +194,17 @@ steps_ = FeatureUnion([
 ('cat_cols', cat_cols_pipeline)
 ])
 full_pipeline = Pipeline([('steps_', steps_)])
-X = full_pipeline.fit_transform(train)
+X = full_pipeline.fit_transform(X_train)
    
 y_pred=model.predict_proba(X)
 final = y_pred
-st.write(f"Prediction: {X}")
+if np.argmax(final)==1:
+    st.write(f"Can make donation")
+elif np.argmax(final)==0:
+    st.write(f"Cannot make donation")    
+
 
 #X_train=np.array(X_train)
 #st.image(data.images[sample_index], clamp=True, width=300)
 #st.write(f"Ground Truth: {data.target[sample_index]}")
-st.write(f"Prediction: {final}")
+st.write(f"Prediction: {np.argmax(final)}")
