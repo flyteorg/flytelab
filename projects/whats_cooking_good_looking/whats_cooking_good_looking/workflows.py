@@ -101,6 +101,7 @@ def load_train_data(train_data_local_path: str) -> List[Tuple[str, dict]]:
             for json_str in list(f):
                 train_data_dict = json.loads(json_str)
                 train_text = train_data_dict.pop["text"]
+                train_data_dict.update({"entities": [(entity_elt for entity_elt in train_data_dict["entities"])]})
                 formatted_train_line = (train_text, train_data_dict)
                 train_data.append(formatted_train_line)
     return train_data
