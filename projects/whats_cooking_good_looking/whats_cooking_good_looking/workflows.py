@@ -78,10 +78,11 @@ def download_from_gcs(bucket_name: str, source_blob_name: str) -> str:
     destination_folder = os.path.join(os.getcwd(), "train_data")
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=source_blob_name)
+    blobs = bucket.list_blobs(prefix=source_blob_name, delimiter="/")
     for blob in blobs:
-        filename = blob.name.replace("/", "_")
-        blob.download_to_filename(os.path.join(destination_folder, filename))
+        if not blob.name.endswith("/"):
+            filename = blob.name.replace("/", "_")
+            blob.download_to_filename(os.path.join(destination_folder, filename))
     print(f"Downloaded at {destination_folder}")
     return destination_folder
 
