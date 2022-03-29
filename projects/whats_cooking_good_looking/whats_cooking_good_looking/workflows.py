@@ -124,7 +124,7 @@ def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> Li
 
 
 @task
-def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 30) -> Language:
+def train_model(train_data_files: List[str], nlp: Language, training_iterations: int = 30) -> Language:
     """ Uses new labelled data to improve spacy NER model.
 
     Args:
@@ -135,7 +135,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
                     ("Flyte is another example of organisation.", {"entities": [(0, 6, "ORG")]}),
                 ]
         nlp (Language): Spacy base model to train on.
-        n_iterations (int): Number of training iterations to make. Defaults to 30.
+        training_iterations (int): Number of training iterations to make. Defaults to 30.
         lang (str, optional): Texts language. Defaults to "en".
 
     Returns:
@@ -150,7 +150,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
     unaffected_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
     with nlp.disable_pipes(*unaffected_pipes):
         optimizer = spacy.blank("en").initialize()
-        for iteration in range(n_iterations):
+        for iteration in range(training_iterations):
             random.shuffle(train_data)
             losses = {}
             batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))
@@ -172,7 +172,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
 def init_model(
     bucket_name: str,
     train_data_gcs_folder: str,
-    n_iterations: int = 30,
+    training_iterations: int = 30,
     lang: str = "en",
 ) -> Language:
     """ Initialize Spacy Model. If train data is available on GCS bucket, train a model.
@@ -180,7 +180,7 @@ def init_model(
     Args:
         bucket_name (str): Name of the bucket to retrieve training data from.
         train_data_gcs_folder (str): Path to training data folder in GCS bucket.
-        n_iterations (int, optional): Number of training iterations. Defaults to 30.
+        training_iterations (int, optional): Number of training iterations. Defaults to 30.
         lang (str, optional): Language of Spacy model and texts. Defaults to "en".
 
     Returns:
@@ -190,7 +190,7 @@ def init_model(
     train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
     if train_data_files:
         print("Performing model training with downloaded training data...")
-        nlp = train_model(train_data_files=train_data_files, nlp=nlp, n_iterations=n_iterations)
+        nlp = train_model(train_data_files=train_data_files, nlp=nlp, n_iterations=training_iterations)
         print("Spacy model has been trained !")
     return nlp
 
@@ -268,7 +268,7 @@ def main() -> str:
     nlp = init_model(
         bucket_name=config["bucket_name"],
         train_data_gcs_folder=config["train_data_gcs_folder"],
-        n_iterations=10,
+        training_iterations=config["training_iterations"],
         lang=config["lang"]
     )
     return apply_model(nlp=nlp, tweets_list=tweets_list)

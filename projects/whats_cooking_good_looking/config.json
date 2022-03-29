@@ -3,5 +3,6 @@
     "keyword_list": ["beauty", "skin", "hair"],
     "max_results": 1000,
     "bucket_name": "wcgl_data",
-    "train_data_gcs_folder": "spacy_model/training_data"
+    "train_data_gcs_folder": "spacy_model/training_data",
+    "training_iterations": 10
 }
