@@ -11,6 +11,7 @@ from snscrape.modules.twitter import TwitterSearchScraper
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
+from itertools import groupby
 
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
@@ -196,9 +197,39 @@ def init_model(
     return nlp
 
 
+def doc_to_spans(doc):
+    """This function converts spaCy docs to the list of named entity spans in Label Studio compatible JSON format"""
+    tokens = [(tok.text, tok.idx, tok.ent_type_) for tok in doc]
+    results = []
+    entities = set()
+    for entity, group in groupby(tokens, key=lambda t: t[-1]):
+        if not entity:
+            continue
+        group = list(group)
+        _, start, _ = group[0]
+        word, last, _ = group[-1]
+        text = ' '.join(item[0] for item in group)
+        end = last + len(word)
+        results.append({
+            'from_name': 'label',
+            'to_name': 'text',
+            'type': 'labels',
+            'value': {
+                'start': start,
+                'end': end,
+                'text': text,
+                'labels': [entity]
+            }
+        })
+        entities.add(entity)
+
+    return results, entities
+
+
 @task
 def apply_model(nlp: Language, tweets_list: str) -> str:
-    """Applies spacy model to each tweet to extract entities from.
+    """Applies spacy model to each tweet to extract entities from and convert them into 
+    Label studio task format.
 
     Args:
         nlp (Language): Spacy model to use for inference.
@@ -223,20 +254,23 @@ def apply_model(nlp: Language, tweets_list: str) -> str:
                 }
             ]
     """
-    tweet_entities = []
+    entities = set()
+    tasks = []
+    model_name = SPACY_MODEL['en']
     for tweet in json.loads(tweets_list):
-        tweet["entities"] = json.dumps(
-            [
-                {
-                    "label": ent.label_,
-                    "start_char": ent.start_char,
-                    "end_char": ent.end_char,
-                }
-                for ent in nlp(tweet["text"]).ents
-            ]
-        )
-        tweet_entities.append(tweet)
-    return json.dumps(tweet_entities)
+        predictions = []
+        text = tweet["text"]
+        doc = nlp(text)
+        spans, ents = doc_to_spans(doc)
+        entities |= ents
+        predictions.append({'model_version': model_name, 'result': spans})
+        tasks.append({
+            'data': {'text': text},
+            'predictions': predictions
+        })
+    with open('tasks.json', mode='w') as f:
+        json.dump(tasks, f, indent=2)
+    return json.dumps(tasks)
 
 
 @workflow
@@ -273,6 +307,8 @@ def main() -> str:
         lang=config["lang"]
     )
     return apply_model(nlp=nlp, tweets_list=tweets_list)
+
+
 
 
 if __name__ == "__main__":
