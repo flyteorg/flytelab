@@ -5,7 +5,6 @@ import docker
 import git
 import typer
 
-
 app = typer.Typer()
 
 docker_client = docker.from_env()

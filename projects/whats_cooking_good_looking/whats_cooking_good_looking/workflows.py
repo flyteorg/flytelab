@@ -1,21 +1,19 @@
+import glob
 import json
+import logging
+import os
+import random
+from pathlib import Path
 from typing import List
 
-import logging
-import glob
-import os
+import spacy
+from flytekit import Resources, dynamic, task, workflow
 from google.cloud import storage
 from sklearn.pipeline import Pipeline
-import spacy
-from flytekit import task, workflow, Resources, dynamic
 from snscrape.modules.twitter import TwitterSearchScraper
-
-import random
-from spacy.training import Example
 from spacy.language import Language
-from spacy.util import minibatch, compounding
-from pathlib import Path
-
+from spacy.training import Example
+from spacy.util import compounding, minibatch
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
@@ -26,6 +24,7 @@ SPACY_MODEL = {"en": "en_core_web_trf"}
 CACHE_VERSION = "2.2"
 request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
+
 
 def load_config():
     with open("config.json", "r") as f:
@@ -103,14 +102,14 @@ def load_train_data(train_data_files: str) -> List:
     Returns:
         List: Tuple of texts and dict of entities to be used for training.
     """
-    #train_data_files = glob.glob(os.path.join(train_data_local_path, "*.jsonl"))
+    # train_data_files = glob.glob(os.path.join(train_data_local_path, "*.jsonl"))
     train_data = []
     for data_file in train_data_files:
         with open(data_file, "r") as f:
             for json_str in list(f):
                 train_data_dict = json.loads(json_str)
                 train_text = train_data_dict["text"]
-                #train_entities = train_data_dict["entities"]
+                # train_entities = train_data_dict["entities"]
                 train_entities = {"entities": [tuple(entity_elt) for entity_elt in train_data_dict["entities"]]}
                 formatted_train_line = (train_text, train_entities)
                 train_data.append(formatted_train_line)
@@ -154,14 +153,14 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
     for _, annotations in train_data:
         for ent in annotations.get("entities"):
             ner.add_label(ent[2])
-    
+
     pipe_exceptions = ["ner", "trf_wordpiecer", "trf_tok2vec"]
     unaffected_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
     with nlp.disable_pipes(*unaffected_pipes):
         for iteration in range(n_iterations):
             random.shuffle(train_data)
             losses = {}
-            #batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))  
+            #batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))
             #for batch in batches:
             #    texts, annotations = zip(*batch)
             #    nlp.update(
@@ -220,6 +219,7 @@ def init_model(
         trained_model_path = train_model(train_data_files=train_data_files, nlp=nlp, n_iterations=n_iterations)
         nlp = spacy.load(trained_model_path)
     return nlp
+
 
 @task
 def apply_model(nlp, tweets_list: str) -> str:
@@ -292,9 +292,9 @@ def main() -> str:
         keyword_list=config["keyword_list"], lang=config["lang"], max_results=config["max_results"]
     )
     nlp = init_model(
-        bucket_name=config["bucket_name"], 
-        train_data_gcs_folder=config["train_data_gcs_folder"], 
-        n_iterations=30, 
+        bucket_name=config["bucket_name"],
+        train_data_gcs_folder=config["train_data_gcs_folder"],
+        n_iterations=30,
         lang=config["lang"]
     )
     return apply_model(nlp=nlp, tweets_list=tweets_list)
