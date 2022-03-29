@@ -1,6 +1,5 @@
 import glob
 import json
-import logging
 import os
 import random
 from typing import List
@@ -12,9 +11,6 @@ from snscrape.modules.twitter import TwitterSearchScraper
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
-
-logger = logging.getLogger(__file__)
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
@@ -32,7 +28,7 @@ def load_config():
 
 @task
 def get_tweets_list(
-    keyword_list: List[str], lang: str = "en", max_results: int = 20
+    keyword_list: List[str], lang: str = "en", max_results: int = 1000
 ) -> str:
     """Collects `max_results` tweets mentioning any of the words in `keywords_list` written in language `lang`.
 
