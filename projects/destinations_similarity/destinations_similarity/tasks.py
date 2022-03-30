@@ -6,12 +6,21 @@ from typing import List, Dict
 
 import requests
 import pandas as pd
+import torch
+import numpy as np
+import faiss
 from flytekit import task, Resources
+from unidecode import unidecode
+from deep_translator import GoogleTranslator
+
 
 from destinations_similarity.scraper.extractor import WikiExtractor
 from destinations_similarity.scraper.brazilian_cities import (
     get_brazilian_cities_data, get_dataframe
 )
+from destinations_similarity.preprocessing_data.text_processing import translate_description_series
+from destinations_similarity.preprocessing_data.text_processing import preprocess_text, translate_description
+from destinations_similarity.feature_engineering.text_feature_engineering import TextVectorizer
 
 
 # Logging config
@@ -133,3 +142,74 @@ def retrieve_dataset_from_remote(url: str) -> pd.DataFrame:
     dataset_df = pd.read_parquet(dataset_parquet)
     LOGGER.info("Retrieved dataset from %s.", url)
     return dataset_df
+
+@task(retries=3, requests=BASE_RESOURCES)
+def preprocess_input_data(dataframe:pd.DataFrame, columns_to_translate: List[str],
+                            columns_to_process:List[str]) -> pd.DataFrame:
+  for col in columns_to_process+columns_to_translate:
+      if col in columns_to_translate:
+          dataframe[col] = translate_description_series(dataframe,col)
+      else:
+          dataframe[col] = dataframe[col].fillna("").swifter.apply(lambda x: unidecode(x) if type(x)==str else x).str.lower()
+          dataframe[col] = preprocess_text(dataframe,col)
+  return dataframe
+
+@task(retries=3, requests=BASE_RESOURCES)
+def vectorize_columns(dataframe,columns_to_vec,city_column) -> List[pd.DataFrame]:
+  model = TextVectorizer()
+  col_emb=[]
+  for col in columns_to_vec:
+    inputs_ids = model.encode_inputs(dataframe[col])
+    embeddings = model.get_df_embedding(inputs_ids)
+    city_embeddings = pd.concat([dataframe[city_column],embeddings],axis=1)
+    col_emb.append(city_embeddings)
+  return col_emb
+
+@task(retries=3, requests=BASE_RESOURCES)
+def build_mean_embedding(list_dataframes:List[pd.DataFrame]) -> torch.tensor:
+  col_emb_=[data.iloc[:,1:].values for data in list_dataframes]
+  aux = torch.tensor(col_emb_)
+  aux_mean = aux.mean(axis=0)
+  aux_mean = pd.DataFrame(aux_mean).astype("float")
+  aux_mean['city'] = list_dataframes[0].iloc[:,0]
+  aux_mean = aux_mean.fillna(0)
+  return aux_mean
+
+@task(retries=3, requests=BASE_RESOURCES)
+def get_k_most_near(dataframe, kneighborhood: int, vector_dim: int,
+                    city_name:str,city_column: str)->None:
+        """
+        Method responsable for getting the nearst city to a given hotel
+        Args:
+            knn (int): number of nea hotels
+            dim (int): embedding dimension
+            city_name (str): city name of hotels
+        """
+        vec = dataframe[dataframe[city_column]!=city_name].iloc[:,:vector_dim]
+        vec_name = dataframe[dataframe[city_column]!=city_name]
+        index = faiss.IndexFlatL2(vector_dim)
+        index.add(np.ascontiguousarray(np.float32(vec.values)))
+        
+        query = dataframe[dataframe[city_column]==city_name].iloc[:,:vector_dim].values
+
+        query = np.float32(query)
+        
+        D, I = index.search(query, kneighborhood)
+      
+        most_near = vec_name[city_column].iloc[I[0]]
+        
+        return most_near
+
+@task(retries=3, requests=BASE_RESOURCES)
+def translate_description(text:str, target_lang: str='pt') -> str:
+    """
+    Method responsable for translate non-portuguese text
+    Args:
+        text (str): text to be translated
+    Return:
+        pd.DataFrame with all text (translated e non-translated)
+    """
+    try:
+        return GoogleTranslator(source='auto', target=target_lang).translate(text)
+    except:
+        return text
