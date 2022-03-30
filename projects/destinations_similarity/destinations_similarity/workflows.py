@@ -77,38 +77,10 @@ def inference(dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame,
     nearst_city = tasks.get_k_most_near(dataframe_vectorized,kneighborhood,
                                                 vector_dim,actual_city_name,city_column)
 
-    output = tasks.build_output(dataframe,nearst_city,see_wikivoyage,do_wikivoyage,city_column,kneighborhood,actual_city_name)
-    
-    pois_target = dataframe[dataframe[city_column]==actual_city_name][[see_wikivoyage, do_wikivoyage]]
-    
-    if len(pois_target)>0:
-        to_see_actual = tasks.translate_description(pois_target[see_wikivoyage].iloc[0],'en')
-        to_do_actual = tasks.translate_description(pois_target[do_wikivoyage].iloc[0],'en')
-    else:
-        to_see_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
-        to_do_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
+    output = tasks.build_output(dataframe,nearst_city,see_wikivoyage,
+                                do_wikivoyage,city_column,kneighborhood,actual_city_name)
     
     
-    to_see_nearst = []
-    to_do_nearst = []
-    for cits in range(kneighborhood):
-        pois_suggestion = dataframe[dataframe[city_column]==nearst_city.iloc[cits]][[see_wikivoyage, do_wikivoyage]]
-        if len(pois_suggestion)>0:
-            to_see_nearst.append(tasks.translate_description(pois_suggestion[see_wikivoyage].iloc[0],'en'))
-            to_do_nearst.append(tasks.translate_description(pois_suggestion[do_wikivoyage].iloc[0],'en'))
-        else:
-            to_see_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
-            to_do_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
-
-    output = {
-        "actual_city": actual_city_name,
-        "actual_city_to_see":to_see_actual,
-        "actual_city_to_do":to_do_actual,
-        "nearst_city":list(nearst_city),
-        "nearst_to_see":to_see_nearst,
-        "nearst_to_see":to_do_nearst
-    }
-
     return output                                       
 
 
