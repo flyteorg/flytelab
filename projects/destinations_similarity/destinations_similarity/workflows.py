@@ -64,7 +64,8 @@ def build_knowledge_base(remote_dataset: str = "") -> None:
 
 @workflow
 def inference(dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame, 
-                    kneighborhood:int, vector_dim: int, actual_city_name:str) -> dict:
+                    kneighborhood:int, vector_dim: int, actual_city_name:str,
+                    see_wikivoyage,do_wikivoyage,city_column) -> dict:
     """Retrieve knowledge base
 
     Args:
@@ -73,12 +74,10 @@ def inference(dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame,
         
     """
     
-    see_wikivoyage = CONFIG['see_wikivoyage_column_name']
-    do_wikivoyage = CONFIG['do_wikivoyage_column_name']
-    city_column = CONFIG['city_column_name']
-
     nearst_city = tasks.get_k_most_near(dataframe_vectorized,kneighborhood,
                                                 vector_dim,actual_city_name,city_column)
+
+    output = tasks.build_output(dataframe,nearst_city,see_wikivoyage,do_wikivoyage,city_column,kneighborhood,actual_city_name)
     
     pois_target = dataframe[dataframe[city_column]==actual_city_name][[see_wikivoyage, do_wikivoyage]]
     
@@ -111,45 +110,6 @@ def inference(dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame,
     }
 
     return output                                       
-
-
-
-@workflow
-def inference(dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame, 
-                    kneighborhood:int, vector_dim: int, city_name:str) -> None:
-    """Retrieve knowledge base
-
-    Args:
-        remote_dataset (str): Remote dataset's URL. Defaults to ''.
-
-    Returns:
-
-    """
-    
-    see_wikivoyage = CONFIG['see_wikivoyage_column_name']
-    do_wikivoyage = CONFIG['do_wikivoyage_column_name']
-    city_column = CONFIG['city_column_name']
-
-    nearst_city = tasks.get_k_most_near(dataframe_vectorized,kneighborhood,
-                                                vector_dim,city_name,city_column)
-    
-    pois_target = dataframe[dataframe[city_column]==city_name][[see_wikivoyage, do_wikivoyage]]
-
-    print('Last city visited: {}\n'.format(city_name))
-    if len(pois_target)>0:
-        print('What you saw in the last city:\n{}\n'.format(tasks.translate_description(pois_target[see_wikivoyage].iloc[0],'en')))
-        print('What you did in the last city:\n{}\n'.format(tasks.translate_description(pois_target[do_wikivoyage].iloc[0],'en')))
-    else:
-        print("\nOops..unfortunately we don't have the record of what Kin did in this city :/\n")
-    
-    for cits in range(kneighborhood):
-        pois_suggestion = dataframe[dataframe[city_column]==nearst_city.iloc[cits]][[see_wikivoyage, do_wikivoyage]]
-        print('\nSuggestion of next cities to visit: {}\n'.format(nearst_city.iloc[cits]))
-        if len(pois_suggestion)>0:
-            print('\nWhat you will see in the next cities\n{}'.format(tasks.translate_description(pois_suggestion[see_wikivoyage].iloc[0],'en')))
-            print('\nWhat you will do in the next cities\n{}'.format(tasks.translate_description(pois_suggestion[do_wikivoyage].iloc[0],'en')))
-        else:
-            print("\nOops..unfortunately we don't have information about this city :/\n")                                           
 
 
 # Launch plans

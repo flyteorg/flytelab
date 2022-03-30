@@ -201,15 +201,38 @@ def get_k_most_near(dataframe, kneighborhood: int, vector_dim: int,
         return most_near
 
 @task(retries=3, requests=BASE_RESOURCES)
-def translate_description(text:str, target_lang: str='pt') -> str:
-    """
-    Method responsable for translate non-portuguese text
-    Args:
-        text (str): text to be translated
-    Return:
-        pd.DataFrame with all text (translated e non-translated)
-    """
-    try:
-        return GoogleTranslator(source='auto', target=target_lang).translate(text)
-    except:
-        return text
+def build_output(dataframe,nearst_city,see_wikivoyage,
+                    do_wikivoyage,city_column,kneighborhood,
+                    actual_city_name) -> dict:
+
+    pois_target = dataframe[dataframe[city_column]==actual_city_name][[see_wikivoyage, do_wikivoyage]]
+    
+    if len(pois_target)>0:
+        to_see_actual = translate_description(pois_target[see_wikivoyage].iloc[0],'en')
+        to_do_actual = translate_description(pois_target[do_wikivoyage].iloc[0],'en')
+    else:
+        to_see_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
+        to_do_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
+    
+    
+    to_see_nearst = []
+    to_do_nearst = []
+    for cits in range(kneighborhood):
+        pois_suggestion = dataframe[dataframe[city_column]==nearst_city.iloc[cits]][[see_wikivoyage, do_wikivoyage]]
+        if len(pois_suggestion)>0:
+            to_see_nearst.append(translate_description(pois_suggestion[see_wikivoyage].iloc[0],'en'))
+            to_do_nearst.append(translate_description(pois_suggestion[do_wikivoyage].iloc[0],'en'))
+        else:
+            to_see_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
+            to_do_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
+
+    output = {
+        "actual_city": actual_city_name,
+        "actual_city_to_see":to_see_actual,
+        "actual_city_to_do":to_do_actual,
+        "nearst_city":list(nearst_city),
+        "nearst_to_see":to_see_nearst,
+        "nearst_to_see":to_do_nearst
+    }
+
+    return output 
