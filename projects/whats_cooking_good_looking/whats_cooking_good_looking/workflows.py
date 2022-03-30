@@ -21,9 +21,11 @@ limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
 def load_config():
-    config_file_path = (Path(__file__).parent.parent.resolve() / 'config.json')
+    """ Load config """
+    config_file_path = (Path(__file__).parent.resolve() / 'config.json')
     with open(config_file_path, "r") as f:
         config = json.load(f)
+        print(f"Loaded config: {config}")
     return config
 
 
@@ -66,26 +68,25 @@ def get_tweets_list(
     return json.dumps(tweets_list)
 
 
-def download_from_gcs(bucket_name: str, source_blob_name: str) -> str:
+def download_from_gcs(bucket_name: str, source_blob_name: str, destination_folder: str) -> str:
     """ Download gcs data locally.
 
     Args:
         bucket_name (str): Name of the GCS bucket.
         source_blob_name (str): GCS path to data in the bucket.
+        destination_folder (str): Folder to download GCS data to.
 
     Returns:
         str: Local destination folder
     """
-    destination_folder = os.path.join(os.getcwd(), "train_data")
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=source_blob_name, delimiter="/")
+    blobs = bucket.list_blobs(prefix=source_blob_name)
     for blob in blobs:
         if not blob.name.endswith("/"):
             filename = blob.name.replace("/", "_")
             blob.download_to_filename(os.path.join(destination_folder, filename))
     print(f"Downloaded at {destination_folder}")
-    return destination_folder
 
 
 def load_train_data(train_data_files: str) -> List:
@@ -120,8 +121,9 @@ def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> Li
     Returns:
         List: Tuple of texts and dict of entities to be used for training.
     """
-    train_data_local_path = download_from_gcs(bucket_name, train_data_gcs_folder)
-    train_data_files = glob.glob(os.path.join(train_data_local_path, "*.jsonl"))
+    train_data_local_folder = (Path(__file__).parent.parent.resolve() / 'train_data')
+    download_from_gcs(bucket_name, train_data_gcs_folder, train_data_local_folder)
+    train_data_files = glob.glob(os.path.join(train_data_local_folder, "*.jsonl"))
     return train_data_files
 
 
@@ -138,7 +140,6 @@ def train_model(train_data_files: List[str], nlp: Language, training_iterations:
                 ]
         nlp (Language): Spacy base model to train on.
         training_iterations (int): Number of training iterations to make. Defaults to 30.
-        lang (str, optional): Texts language. Defaults to "en".
 
     Returns:
         Language: Trained spacy model
