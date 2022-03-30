@@ -111,7 +111,7 @@ def load_train_data(train_data_files: str) -> List:
 
 
 @task
-def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> List[str]:
+def retrieve_train_data_from_gcs(bucket_name: str, train_data_gcs_folder: str) -> List[str]:
     """ Retrieves training data from GCS.
 
     Args:
@@ -265,7 +265,7 @@ def main() -> str:
     tweets_list = get_tweets_list(
         keyword_list=config["keyword_list"], lang=config["lang"], max_results=config["max_results"]
     )
-    train_data_files = retrieve_train_data_path(
+    train_data_files = retrieve_train_data_from_gcs(
         bucket_name=config["bucket_name"], train_data_gcs_folder=config["train_data_gcs_folder"]
     )
     nlp = init_model(
