@@ -161,7 +161,7 @@ def register(version: str, remote: bool, fast: bool, domain: str):
     typer.echo(f"Successfully registered version {version}.")
 
 
-@app.command
+@app.command()
 def main(
     remote: bool = False, fast: bool = False, domain: str = "development",
     registry: str = None
