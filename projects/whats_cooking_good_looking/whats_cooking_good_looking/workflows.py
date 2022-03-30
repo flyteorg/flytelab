@@ -191,7 +191,7 @@ def init_model(
     """
     nlp = spacy.load(SPACY_MODEL[lang])
     train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
-    if train_data_files:
+    if len(train_data_files) > 0:
         print("Performing model training with downloaded training data...")
         nlp = train_model(train_data_files=train_data_files, nlp=nlp, training_iterations=training_iterations)
         print("Spacy model has been trained !")
