@@ -11,7 +11,7 @@ import typer
 
 
 IMAGE_NAME = "flytelab"
-REGISTRY = "ghcr.io/patrickfbraz@poli.ufrj.br".lower()
+REGISTRY = "ghcr.io/patrickfbraz".lower()
 PROJECT_NAME = "vamos-dalhe"
 DESCRIPTION = "Hurb project to the Flyte Hackathon"
 
