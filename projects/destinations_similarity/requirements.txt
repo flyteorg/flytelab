@@ -1,2 +1,4 @@
 flytekit>=0.30.3
-google-cloud-storage==1.43.0
+pandas~=1.4.0
+beautifulsoup4~=4.10.0
+requests~=2.27.1

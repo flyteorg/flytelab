@@ -1,1 +1,1 @@
-"""Python package containing objects of the destinations_similarity project."""
+"""Package with the source code for the destinations_similarity project."""
