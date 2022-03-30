@@ -1,16 +1,31 @@
+import glob
 import json
+import os
+import random
+from pathlib import Path
 from typing import List
 
 import spacy
-from flytekit import task, workflow
+from flytekit import Resources, dynamic, task, workflow
+from google.cloud import storage
 from snscrape.modules.twitter import TwitterSearchScraper
+from spacy.language import Language
+from spacy.training import Example
+from spacy.util import compounding, minibatch
 
-SPACY_MODEL = {"en": "en_core_web_trf"}
+SPACY_MODEL = {"en": "en_core_web_sm"}
+
+CACHE_VERSION = "2.2"
+request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
+limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
 def load_config():
-    with open("config.json", "r") as f:
+    """ Load config """
+    config_file_path = (Path(__file__).parent.resolve() / 'config.json')
+    with open(config_file_path, "r") as f:
         config = json.load(f)
+        print(f"Loaded config: {config}")
     return config
 
 
@@ -47,19 +62,149 @@ def get_tweets_list(
                 "date": str(tweet_post.date),
                 "tweet_id": str(tweet_post.id),
                 "text": str(tweet_post.content),
-                "username": str(tweet_post.user.username),
+                "username": str(tweet_post.username),
             }
         )
     return json.dumps(tweets_list)
 
 
+def download_from_gcs(bucket_name: str, source_blob_name: str, destination_folder: str) -> str:
+    """ Download gcs data locally.
+
+    Args:
+        bucket_name (str): Name of the GCS bucket.
+        source_blob_name (str): GCS path to data in the bucket.
+        destination_folder (str): Folder to download GCS data to.
+
+    Returns:
+        str: Local destination folder
+    """
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=source_blob_name)
+    for blob in blobs:
+        if not blob.name.endswith("/"):
+            filename = blob.name.replace("/", "_")
+            blob.download_to_filename(os.path.join(destination_folder, filename))
+    print(f"Downloaded at {destination_folder}")
+
+
+def load_train_data(train_data_files: str) -> List:
+    """ Load jsonl train data as a list, ready to be ingested by spacy model.
+
+    Args:
+        train_data_local_path (str): Path of files to load.
+
+    Returns:
+        List: Tuple of texts and dict of entities to be used for training.
+    """
+    train_data = []
+    for data_file in train_data_files:
+        with open(data_file, "r") as f:
+            for json_str in list(f):
+                train_data_dict = json.loads(json_str)
+                train_text = train_data_dict["text"]
+                train_entities = {"entities": [tuple(entity_elt) for entity_elt in train_data_dict["entities"]]}
+                formatted_train_line = (train_text, train_entities)
+                train_data.append(formatted_train_line)
+    return train_data
+
+
 @task
-def apply_model(tweets_list: str, lang: str = "en") -> str:
+def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> List[str]:
+    """ Retrieves training data from GCS.
+
+    Args:
+        bucket_name (str): Name of the GCS bucket.
+        train_data_gcs_folder (str): GCS folder containing train data.
+
+    Returns:
+        List: Tuple of texts and dict of entities to be used for training.
+    """
+    train_data_local_folder = (Path(__file__).parent.parent.resolve() / 'train_data')
+    download_from_gcs(bucket_name, train_data_gcs_folder, train_data_local_folder)
+    train_data_files = glob.glob(os.path.join(train_data_local_folder, "*.jsonl"))
+    return train_data_files
+
+
+@task
+def train_model(train_data_files: List[str], nlp: Language, training_iterations: int = 30) -> Language:
+    """ Uses new labelled data to improve spacy NER model.
+
+    Args:
+        train_data_files (List[str]): List of data filepath to train model on. After being loaded, format \
+            should be the following:
+                train_data = [
+                    ("Text to detect Entities in.", {"entities": [(15, 23, "PRODUCT")]}),
+                    ("Flyte is another example of organisation.", {"entities": [(0, 6, "ORG")]}),
+                ]
+        nlp (Language): Spacy base model to train on.
+        training_iterations (int): Number of training iterations to make. Defaults to 30.
+
+    Returns:
+        Language: Trained spacy model
+    """
+    train_data = load_train_data(train_data_files)
+    ner = nlp.get_pipe("ner")
+    for _, annotations in train_data:
+        for ent in annotations.get("entities"):
+            ner.add_label(ent[2])
+    pipe_exceptions = ["ner", "trf_wordpiecer", "trf_tok2vec"]
+    unaffected_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
+    with nlp.disable_pipes(*unaffected_pipes):
+        optimizer = spacy.blank("en").initialize()
+        for iteration in range(training_iterations):
+            random.shuffle(train_data)
+            losses = {}
+            batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))
+            for batch in batches:
+                for text, annotations in batch:
+                    doc = nlp.make_doc(text)
+                    example = Example.from_dict(doc, annotations)
+                    nlp.update([example], drop=0.35, losses=losses, sgd=optimizer)
+                    print("Iteration n°", iteration)
+                    print("Losses", losses)
+    return nlp
+
+
+@dynamic(
+    cache=False,
+    requests=request_resources,
+    limits=limit_resources,
+)
+def init_model(
+    bucket_name: str,
+    train_data_gcs_folder: str,
+    training_iterations: int = 30,
+    lang: str = "en",
+) -> Language:
+    """ Initialize Spacy Model. If train data is available on GCS bucket, train a model.
+
+    Args:
+        bucket_name (str): Name of the bucket to retrieve training data from.
+        train_data_gcs_folder (str): Path to training data folder in GCS bucket.
+        training_iterations (int, optional): Number of training iterations. Defaults to 30.
+        lang (str, optional): Language of Spacy model and texts. Defaults to "en".
+
+    Returns:
+        Language: Spacy model, trained if train data has been downloaded.
+    """
+    nlp = spacy.load(SPACY_MODEL[lang])
+    train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
+    if train_data_files:
+        print("Performing model training with downloaded training data...")
+        nlp = train_model(train_data_files=train_data_files, nlp=nlp, training_iterations=training_iterations)
+        print("Spacy model has been trained !")
+    return nlp
+
+
+@task
+def apply_model(nlp: Language, tweets_list: str) -> str:
     """Applies spacy model to each tweet to extract entities from.
 
     Args:
+        nlp (Language): Spacy model to use for inference.
         tweets_list (str): json dumped list of tweets.
-        lang (str, optional): Language in which tweets must be written(iso-code). Defaults to "en".
 
     Returns:
         str: json dumped results with following shape
@@ -80,7 +225,6 @@ def apply_model(tweets_list: str, lang: str = "en") -> str:
                 }
             ]
     """
-    nlp = spacy.load(SPACY_MODEL[lang])
     tweet_entities = []
     for tweet in json.loads(tweets_list):
         tweet["entities"] = json.dumps(
@@ -121,8 +265,16 @@ def main() -> str:
             ]
     """
     config = load_config()
-    tweets_list = get_tweets_list(**config)
-    return apply_model(tweets_list=tweets_list, lang=config["lang"])
+    tweets_list = get_tweets_list(
+        keyword_list=config["keyword_list"], lang=config["lang"], max_results=config["max_results"]
+    )
+    nlp = init_model(
+        bucket_name=config["bucket_name"],
+        train_data_gcs_folder=config["train_data_gcs_folder"],
+        training_iterations=config["training_iterations"],
+        lang=config["lang"]
+    )
+    return apply_model(nlp=nlp, tweets_list=tweets_list)
 
 
 if __name__ == "__main__":

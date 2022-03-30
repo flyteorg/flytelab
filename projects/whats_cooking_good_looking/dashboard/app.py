@@ -3,13 +3,10 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import streamlit as st
-
-from flytekit.remote import FlyteRemote
 from flytekit.models import filters
 from flytekit.models.admin.common import Sort
-
+from flytekit.remote import FlyteRemote
 from sklearn.datasets import load_digits
-
 
 PROJECT_NAME = "flytelab-whats_cooking_good_looking".replace("_", "-")
 WORKFLOW_NAME = "whats_cooking_good_looking.workflows.main"

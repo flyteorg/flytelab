@@ -1,6 +1,8 @@
 flytekit>=0.30.3
-s3fs>2022.2.0
+s3fs>=2022.2.0
 
 snscrape==0.4.3.20220106
 spacy==3.2.3
-https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.2.0/en_core_web_trf-3.2.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.2.0/en_core_web_sm-3.2.0-py3-none-any.whl
+google-cloud-storage==2.2.1
+click==7.1.2
