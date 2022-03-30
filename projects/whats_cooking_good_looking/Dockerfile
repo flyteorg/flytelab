@@ -37,7 +37,7 @@ COPY $config /root/flyte.config
 ARG creds
 
 RUN echo $creds > /root/google_creds.json
-ENV GOOGLE_APPLICATION_CREDENTIALS /root/google_creds.json
+ENV GOOGLE_APPLICATION_CREDENTIALS "/root/google_creds.json"
 
 # This image is supplied by the build script and will be used to determine the version
 # when registering tasks, workflows, and launch plans
