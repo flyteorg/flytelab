@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import random
+from pathlib import Path
 from typing import List
 
 import spacy
@@ -12,7 +13,6 @@ from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
 
-
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
 CACHE_VERSION = "2.2"
@@ -21,7 +21,8 @@ limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
 def load_config():
-    with open("config.json", "r") as f:
+    config_file_path = (Path(__file__).parent.parent.resolve() / 'config.json')
+    with open(config_file_path, "r") as f:
         config = json.load(f)
     return config
 
