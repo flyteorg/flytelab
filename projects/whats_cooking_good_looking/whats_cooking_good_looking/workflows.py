@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import random
+from pathlib import Path
 from typing import List
 
 import spacy
@@ -13,7 +14,6 @@ from spacy.training import Example
 from spacy.util import compounding, minibatch
 from itertools import groupby
 
-
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
 CACHE_VERSION = "2.2"
@@ -22,8 +22,11 @@ limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 
 def load_config():
-    with open("config.json", "r") as f:
+    """ Load config """
+    config_file_path = (Path(__file__).parent.resolve() / 'config.json')
+    with open(config_file_path, "r") as f:
         config = json.load(f)
+        print(f"Loaded config: {config}")
     return config
 
 
@@ -66,26 +69,25 @@ def get_tweets_list(
     return json.dumps(tweets_list)
 
 
-def download_from_gcs(bucket_name: str, source_blob_name: str) -> str:
+def download_from_gcs(bucket_name: str, source_blob_name: str, destination_folder: str) -> str:
     """ Download gcs data locally.
 
     Args:
         bucket_name (str): Name of the GCS bucket.
         source_blob_name (str): GCS path to data in the bucket.
+        destination_folder (str): Folder to download GCS data to.
 
     Returns:
         str: Local destination folder
     """
-    destination_folder = os.path.join(os.getcwd(), "train_data")
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=source_blob_name, delimiter="/")
+    blobs = bucket.list_blobs(prefix=source_blob_name)
     for blob in blobs:
         if not blob.name.endswith("/"):
             filename = blob.name.replace("/", "_")
             blob.download_to_filename(os.path.join(destination_folder, filename))
     print(f"Downloaded at {destination_folder}")
-    return destination_folder
 
 
 def load_train_data(train_data_files: str) -> List:
@@ -120,13 +122,14 @@ def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> Li
     Returns:
         List: Tuple of texts and dict of entities to be used for training.
     """
-    train_data_local_path = download_from_gcs(bucket_name, train_data_gcs_folder)
-    train_data_files = glob.glob(os.path.join(train_data_local_path, "*.jsonl"))
+    train_data_local_folder = (Path(__file__).parent.parent.resolve() / 'train_data')
+    download_from_gcs(bucket_name, train_data_gcs_folder, train_data_local_folder)
+    train_data_files = glob.glob(os.path.join(train_data_local_folder, "*.jsonl"))
     return train_data_files
 
 
 @task
-def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 30) -> Language:
+def train_model(train_data_files: List[str], nlp: Language, training_iterations: int = 30) -> Language:
     """ Uses new labelled data to improve spacy NER model.
 
     Args:
@@ -137,8 +140,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
                     ("Flyte is another example of organisation.", {"entities": [(0, 6, "ORG")]}),
                 ]
         nlp (Language): Spacy base model to train on.
-        n_iterations (int): Number of training iterations to make. Defaults to 30.
-        lang (str, optional): Texts language. Defaults to "en".
+        training_iterations (int): Number of training iterations to make. Defaults to 30.
 
     Returns:
         Language: Trained spacy model
@@ -152,7 +154,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
     unaffected_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
     with nlp.disable_pipes(*unaffected_pipes):
         optimizer = spacy.blank("en").initialize()
-        for iteration in range(n_iterations):
+        for iteration in range(training_iterations):
             random.shuffle(train_data)
             losses = {}
             batches = minibatch(train_data, size=compounding(4.0, 32.0, 1.001))
@@ -174,7 +176,7 @@ def train_model(train_data_files: List[str], nlp: Language, n_iterations: int = 
 def init_model(
     bucket_name: str,
     train_data_gcs_folder: str,
-    n_iterations: int = 30,
+    training_iterations: int = 30,
     lang: str = "en",
 ) -> Language:
     """ Initialize Spacy Model. If train data is available on GCS bucket, train a model.
@@ -182,7 +184,7 @@ def init_model(
     Args:
         bucket_name (str): Name of the bucket to retrieve training data from.
         train_data_gcs_folder (str): Path to training data folder in GCS bucket.
-        n_iterations (int, optional): Number of training iterations. Defaults to 30.
+        training_iterations (int, optional): Number of training iterations. Defaults to 30.
         lang (str, optional): Language of Spacy model and texts. Defaults to "en".
 
     Returns:
@@ -192,7 +194,7 @@ def init_model(
     train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
     if train_data_files:
         print("Performing model training with downloaded training data...")
-        nlp = train_model(train_data_files=train_data_files, nlp=nlp, n_iterations=n_iterations)
+        nlp = train_model(train_data_files=train_data_files, nlp=nlp, training_iterations=training_iterations)
         print("Spacy model has been trained !")
     return nlp
 
@@ -303,7 +305,7 @@ def main() -> str:
     nlp = init_model(
         bucket_name=config["bucket_name"],
         train_data_gcs_folder=config["train_data_gcs_folder"],
-        n_iterations=10,
+        training_iterations=config["training_iterations"],
         lang=config["lang"]
     )
     return apply_model(nlp=nlp, tweets_list=tweets_list)
