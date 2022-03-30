@@ -173,16 +173,14 @@ def train_model(train_data_files: List[str], nlp: Language, training_iterations:
     limits=limit_resources,
 )
 def init_model(
-    bucket_name: str,
-    train_data_gcs_folder: str,
+    train_data_files: List[str],
     training_iterations: int = 30,
-    lang: str = "en",
+    lang: str = "en"
 ) -> Language:
     """ Initialize Spacy Model. If train data is available on GCS bucket, train a model.
 
     Args:
-        bucket_name (str): Name of the bucket to retrieve training data from.
-        train_data_gcs_folder (str): Path to training data folder in GCS bucket.
+        train_data_files (List[str]): List of train data files. If empty, no training is made.
         training_iterations (int, optional): Number of training iterations. Defaults to 30.
         lang (str, optional): Language of Spacy model and texts. Defaults to "en".
 
@@ -190,8 +188,7 @@ def init_model(
         Language: Spacy model, trained if train data has been downloaded.
     """
     nlp = spacy.load(SPACY_MODEL[lang])
-    train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
-    if len(train_data_files) > 0:
+    if train_data_files:
         print("Performing model training with downloaded training data...")
         nlp = train_model(train_data_files=train_data_files, nlp=nlp, training_iterations=training_iterations)
         print("Spacy model has been trained !")
@@ -268,9 +265,11 @@ def main() -> str:
     tweets_list = get_tweets_list(
         keyword_list=config["keyword_list"], lang=config["lang"], max_results=config["max_results"]
     )
+    train_data_files = retrieve_train_data_path(
+        bucket_name=config["bucket_name"], train_data_gcs_folder=config["train_data_gcs_folder"]
+    )
     nlp = init_model(
-        bucket_name=config["bucket_name"],
-        train_data_gcs_folder=config["train_data_gcs_folder"],
+        train_data_files=train_data_files,
         training_iterations=config["training_iterations"],
         lang=config["lang"]
     )
