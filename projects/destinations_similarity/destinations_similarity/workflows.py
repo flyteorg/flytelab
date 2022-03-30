@@ -1,9 +1,10 @@
 """Workflows for the destinations_similarity Flyte project."""
 
 from typing import Dict
+from datetime import timedelta
 
 import pandas as pd
-from flytekit import workflow, conditional
+from flytekit import workflow, conditional, LaunchPlan, FixedRate
 
 from destinations_similarity import tasks
 
@@ -40,14 +41,10 @@ def generate_dataset() -> pd.DataFrame:
 
 
 @workflow
-def train_model(
-    remote_dataset: bool = False, dataset_url: str = ''
-) -> Dict[str, pd.DataFrame]:
+def train_model(remote_dataset: str = "") -> Dict[str, pd.DataFrame]:
     """Retrieve dataset and train model.
 
     Args:
-        remote_dataset (bool): Informs if the dataset should be retrieved from
-            a remote location. Defaults to False.
         dataset_url (str, optional): Remote dataset's URL. Defaults to ''.
 
     Returns:
@@ -55,8 +52,8 @@ def train_model(
     """
     dataset = (
         conditional("remote_dataset")
-        .if_(remote_dataset.is_true())
-        .then(tasks.retrieve_dataset_from_remote(url=dataset_url))
+        .if_(remote_dataset != "")
+        .then(tasks.retrieve_dataset_from_remote(url=remote_dataset))
         .else_()
         .then(generate_dataset())
     )
@@ -66,4 +63,15 @@ def train_model(
     return {'dataset': dataset}
 
 
-# TODO: Define launch plans
+# Launch plans
+
+train_model_lp = LaunchPlan.get_or_create(
+    name='train_model_lp',
+    workflow=train_model,
+    default_inputs={
+        'remote_dataset':
+        "https://storage.googleapis.com"
+        "/dsc-public-info/datasets/flytelab_dataset.parquet",
+    },
+    schedule=FixedRate(duration=timedelta(weeks=4))
+)

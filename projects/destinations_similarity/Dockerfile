@@ -28,10 +28,6 @@ ENV VENV="/home/${APPUSER}/venv"
 RUN python -m venv ${VENV}
 ENV PATH="${VENV}/bin:${PATH}"
 
-# Install gsutil
-# RUN curl -sSL "https://sdk.cloud.google.com" | bash
-# ENV PATH="/home/${APPUSER}/google-cloud-sdk/bin:${PATH}"
-
 # Copy requirements
 COPY requirements.txt "/home/${APPUSER}/requirements.txt"
 
