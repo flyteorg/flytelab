@@ -11,7 +11,7 @@ ARG config
 ARG creds
 
 RUN echo $creds > /root/creds.json
-ENV GOOGLE_APPLICATION_CREDENTIALS=/root/creds.json
+ENV GOOGLE_APPLICATION_CREDENTIALS /root/creds.json
 
 RUN apt-get update && \
     apt-get install -y \
