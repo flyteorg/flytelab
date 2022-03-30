@@ -2,6 +2,9 @@
 
 # Dockerfile that sets up the Flyte image
 
+ARG image
+ARG config
+
 FROM python:3.9-slim-buster
 
 # Defining environment variables
@@ -41,5 +44,4 @@ COPY --chown="${APPUSER}:${APPUSER}" \
 COPY $config "/home/${APPUSER}/flyte.config"
 
 # Tag the image
-ARG tag
-ENV FLYTE_INTERNAL_IMAGE="$tag"
+ENV FLYTE_INTERNAL_IMAGE="$image"
