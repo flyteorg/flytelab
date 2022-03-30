@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/checkout@v2
       - name: Build the Docker image
-        run: docker build ${{ env.PROJECT_PATH }}/. --file ${{ env.PROJECT_PATH }}/Dockerfile --build-arg config=.flyte/remote-config.yaml --build-arg image=${{env.REGISTERY}}:${{steps.is-preprod.outputs.tag}} --build-arg creds=${{secret.RUNNER_KEY}} --tag ${{env.REGISTERY}}:${{steps.is-preprod.outputs.tag}}
+        run: docker build ${{ env.PROJECT_PATH }}/. --file ${{ env.PROJECT_PATH }}/Dockerfile --build-arg config=.flyte/remote-config.yaml --build-arg image=${{env.REGISTERY}}:${{steps.is-preprod.outputs.tag}} --build-arg creds=${{secrets.RUNNER_KEY}} --tag ${{env.REGISTERY}}:${{steps.is-preprod.outputs.tag}}
       
       - uses: google-github-actions/setup-gcloud@v0
         with:
