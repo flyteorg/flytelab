@@ -191,7 +191,7 @@ def init_model(
     train_data_files = retrieve_train_data_path(bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder)
     if train_data_files:
         print("Performing model training with downloaded training data...")
-        nlp = train_model(train_data_files=train_data_files, nlp=nlp, n_iterations=training_iterations)
+        nlp = train_model(train_data_files=train_data_files, nlp=nlp, training_iterations=training_iterations)
         print("Spacy model has been trained !")
     return nlp
 
