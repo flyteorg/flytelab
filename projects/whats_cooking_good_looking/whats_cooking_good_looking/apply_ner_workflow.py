@@ -5,7 +5,6 @@ from typing import List
 import spacy
 from flytekit import Resources, task, workflow
 from snscrape.modules.twitter import TwitterSearchScraper
-
 from utils import doc_to_spans, load_config
 
 from whats_cooking_good_looking.utils import download_from_gcs

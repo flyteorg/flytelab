@@ -2,17 +2,16 @@ import glob
 import json
 import os
 import random
+from collections import defaultdict
 from pathlib import Path
 from typing import List
-from collections import defaultdict
 
 import spacy
 from flytekit import Resources, dynamic, task, workflow
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
-
-from utils import download_from_gcs, doc_to_spans, load_config, load_train_data
+from utils import download_from_gcs, load_config
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -36,6 +35,7 @@ def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> Li
     download_from_gcs(bucket_name, train_data_gcs_folder, train_data_local_folder)
     train_data_files = glob.glob(os.path.join(train_data_local_folder, "*.jsonl"))
     return train_data_files
+
 
 @task
 def evaluate_ner(tasks: List[dict]) -> dict:
@@ -65,7 +65,7 @@ def evaluate_ner(tasks: List[dict]) -> dict:
 
     Returns:
         dict: mapping {model_name: accuracy}
-    
+
     """
     model_acc = dict()
     model_hits = defaultdict(int)
@@ -89,7 +89,11 @@ def evaluate_ner(tasks: List[dict]) -> dict:
 @task
 def load_tasks(bucket_name: str, source_blob_name: str) -> str:
     Path("tmp").mkdir(parents=True, exist_ok=True)
-    local_folder = download_from_gcs(bucket_name=bucket_name, source_blob_name=source_blob_name, destination_folder="tmp")
+    local_folder = download_from_gcs(
+        bucket_name=bucket_name,
+        source_blob_name=source_blob_name,
+        destination_folder="tmp",
+    )
     tasks = []
     for filename in os.listdir(local_folder):
         with open(os.path.join(local_folder, filename), "r") as f:
@@ -105,7 +109,11 @@ def load_tasks(bucket_name: str, source_blob_name: str) -> str:
 def format_tasks_for_train(tasks: str):
     train_data = []
     for task in json.loads(tasks):
-        entities = [(ent["start"], ent["end"], label) for ent in task["results"] for label in ent["labels"]]
+        entities = [
+            (ent["start"], ent["end"], label)
+            for ent in task["results"]
+            for label in ent["labels"]
+        ]
         if entities != []:
             train_data.append((task["train"]["data"]["text"], {"entities": entities}))
     return json.dumps(train_data)
@@ -194,10 +202,10 @@ def init_model(
 def main():
     config = load_config("train")
     tasks = load_tasks(config["gcs_bucket_in"], config["gcs_blob_in"])
-    metrics_dict = evaluate_ner(tasks)
+    metrics_dict = evaluate_ner(tasks)  # if metrics are good then stop
     train_data = format_tasks_for_train(tasks)
     train_model(train_data)
-    return 
+    return
 
 
 if __name__ == "__main__":

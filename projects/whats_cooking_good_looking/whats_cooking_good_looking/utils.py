@@ -1,10 +1,10 @@
-import os
-
-from google.cloud import storage
-from itertools import groupby
 import json
+import os
+from itertools import groupby
 from pathlib import Path
 from typing import List
+
+from google.cloud import storage
 
 
 def load_config(train_or_apply: str) -> dict:
@@ -68,7 +68,10 @@ def load_train_data(train_data_files: str) -> List:
 
 
 def download_from_gcs(
-    bucket_name: str, source_blob_name: str, destination_folder: str, explicit_filepath: bool=False
+    bucket_name: str,
+    source_blob_name: str,
+    destination_folder: str,
+    explicit_filepath: bool = False,
 ) -> str:
     """Download gcs data locally.
 
