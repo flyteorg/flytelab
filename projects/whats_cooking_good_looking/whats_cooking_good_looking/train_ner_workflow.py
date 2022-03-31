@@ -88,6 +88,15 @@ def evaluate_ner(tasks: List[dict]) -> dict:
 
 @task
 def load_tasks(bucket_name: str, source_blob_name: str) -> str:
+    """Loads Label Studio annotations.
+
+    Args:
+        bucket_name (str): GCS bucket name where tasks are stored.
+        source_blob_name (str): GCS blob name where tasks are stored.
+
+    Returns:
+        str: json dumped tasks
+    """
     Path("tmp").mkdir(parents=True, exist_ok=True)
     local_folder = download_from_gcs(
         bucket_name=bucket_name,
@@ -106,7 +115,15 @@ def load_tasks(bucket_name: str, source_blob_name: str) -> str:
 
 
 @task
-def format_tasks_for_train(tasks: str):
+def format_tasks_for_train(tasks: str) -> str:
+    """Format Label Studio output to be trained in spacy custom model.
+
+    Args:
+        tasks (str): json dumped tasks
+
+    Returns:
+        str: json dumped train data formatted
+    """
     train_data = []
     for task in json.loads(tasks):
         entities = [
