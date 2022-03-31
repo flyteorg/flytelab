@@ -3,17 +3,21 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import streamlit as st
-
+import logging
+import pandas as pd
+import requests
 from flytekit.remote import FlyteRemote
 from flytekit.models import filters
 from flytekit.models.admin.common import Sort
-
+from PIL import Image
 from sklearn.datasets import load_digits
 
 
 PROJECT_NAME = "vamos-dalhe"
 WORKFLOW_NAME = "destinations_similarity.workflows.main"
 
+# Logging config
+LOGGER = logging.getLogger(__name__)
 
 parser = ArgumentParser()
 parser.add_argument("--remote", action="store_true")
@@ -50,22 +54,39 @@ print(model)
 # App Code #
 ############
 
-data = load_digits(as_frame=True)
+def retrieve_dataset_from_remote(url: str) -> pd.DataFrame:
+    """Retrieve the dataset from a remote URL.
+
+    Args:
+        url (str): Remote address of the dataset, a Parquet file.
+
+    Returns:
+        pd.DataFrame: DataFrame with the dataset.
+    """
+    dataset_parquet = requests.get(url, timeout=30)
+    dataset_df = pd.read_parquet(dataset_parquet)
+    LOGGER.info("Retrieved dataset from %s.", url)
+    return dataset_df
+
+df = retrieve_dataset_from_remote("https://storage.googleapis.com/dsc-public-info/datasets/flytelab_dataset.parquet")
 
 st.write("# Flytelab: destinations_similarity")
-st.write("### Hurb project to the Flyte Hackathon")
-st.write(f"Model: `{model}`")
+#st.write("## Hurb project to the Flyte Hackathon")
+st.write('## Kinder is an adventurous dog who loves to travel! He enjoys specially nature places: beachs, waterfalls, trails and more, which Brazil is not missing. He wants experiences in other cities but he doesnt know where. So he is now asking, **where should I go next**?')
 
-st.write("Use the slider below to select a sample for prediction")
+beach_kinder = Image.open('beach_kinder.jpg')
 
-sample_index = st.slider(
-    "Sample Number",
-    min_value=0,
-    max_value=data.frame.shape[0] - 1,
-    value=0,
-    step=1,
-)
+st.image(beach_kinder, caption='Kinder in love with the beach')
 
-st.image(data.images[sample_index], clamp=True, width=300)
-st.write(f"Ground Truth: {data.target[sample_index]}")
-st.write(f"Prediction: {model.predict(data.frame[data.feature_names].loc[[sample_index]])[0]}")
+st.write("Help Kinder by selecting a city you like in Brazil below so we can recommend similar places he will most certainly enjoy!")
+desired_city = st.selectbox('I like:', df['city'].unique())
+n_citys = st.slider('How many recommendations do you want?', 1, 30, 5)
+
+st.write("## So, where next?")
+st.write("Kinder should go to: " + next_destination(df,n_citys,768,desired_city))
+
+st.write("Hope you enjoy the recommendation! See you on your next trip.")
+
+kinder = Image.open('kinder.jpg')
+
+st.image(kinder, caption='The marvelous Kinder')
