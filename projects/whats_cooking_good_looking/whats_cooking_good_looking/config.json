@@ -1,8 +1,16 @@
-{
-    "lang": "en",
-    "keyword_list": ["beauty", "skin", "hair"],
-    "max_results": 5,
+{"apply":
+    {
+        "lang": "en",
+        "keyword_list": ["beauty", "skin", "hair"],
+        "max_results": 5,
+        "from_gcs": false,
+        "bucket_name": "",
+        "gcs_blob_name": ""
+        },
+ "train":
+ {
     "bucket_name": "wcgl_data",
     "train_data_gcs_folder": "spacy_model/training_data",
     "training_iterations": 10
+ }
 }
