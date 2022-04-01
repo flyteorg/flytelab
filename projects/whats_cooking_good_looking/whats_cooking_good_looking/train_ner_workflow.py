@@ -171,6 +171,7 @@ def train_model(
             ner.add_label(ent[2])
     pipe_exceptions = ["ner", "trf_wordpiecer", "trf_tok2vec"]
     unaffected_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
+    print("Starting model training")
     with nlp.disable_pipes(*unaffected_pipes):
         optimizer = spacy.blank("en").initialize()
         for iteration in range(training_iterations):
@@ -184,6 +185,7 @@ def train_model(
                     nlp.update([example], drop=0.35, losses=losses, sgd=optimizer)
                     print("Iteration n°", iteration)
                     print("Losses", losses)
+    print("Model training completed !")
     upload_to_gcs(bucket_out, source_blob_name, pickle.dumps(nlp))
     return nlp
 

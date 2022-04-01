@@ -9,6 +9,7 @@ ENV PYTHONPATH /root
 # e.g. flyte.config or sandbox.config
 ARG config
 
+
 RUN apt-get update && \
     apt-get install -y \
     libsm6 \
@@ -32,6 +33,11 @@ RUN pip install -r /root/requirements.txt
 
 COPY whats_cooking_good_looking /root/whats_cooking_good_looking
 COPY $config /root/flyte.config
+
+
+ARG creds
+RUN echo $creds | base64 -d > /root/google_creds.json
+ENV GOOGLE_APPLICATION_CREDENTIALS "/root/google_creds.json"
 
 # This image is supplied by the build script and will be used to determine the version
 # when registering tasks, workflows, and launch plans
