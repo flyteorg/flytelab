@@ -35,6 +35,10 @@ The project is cut into 3 steps:
 To run this pipeline locally please run
 ```python whats_cooking_good_looking/apply_ner_workflow.py```
 
+<p align="center">
+    <img src="docs/apply_pipeline.png" />
+</p>
+
 ### 2. Manual labelling part in Label Studio
 
 <<<< Insert Label Studio documentation and images >>>>
@@ -50,6 +54,9 @@ The goal was to create a feedback loop where it was possible to iterate by train
 To run this pipeline locally please run
 ```python whats_cooking_good_looking/train_ner_workflow.py```
 
+<p align="center">
+    <img src="docs/train_pipeline.png" />
+</p>
 ## Pipeline deployment
 
 The Goal of this pipeline is deploy workflows automatically to the playground on pushed commits
