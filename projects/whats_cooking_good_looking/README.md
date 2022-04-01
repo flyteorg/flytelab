@@ -1,8 +1,10 @@
-# whats_cooking_good_looking
+# Whats_cooking_good_looking
 
 ## Problem statement
-The problem is inspired from a past project where we were supposed to extract brands from social media posts.
 
+The world of beauty is in constant evolution. New molecules, new brands, new discovered benefits. Innovating is time consuming, especially when you are a large corporation. So a possible strategy is to find "indie brands" that innovate, and that the public likes, and buy them out.
+Social networks are a perfect place to talk about beauty, and therefore a great place to discover such brands.
+The problem then lies in, how to detect the new brands and trendy products or benefits, to help the merger division finding the right buy?
 
 ## Target Solution implementation
 
