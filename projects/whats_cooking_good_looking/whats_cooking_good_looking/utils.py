@@ -12,7 +12,6 @@ def load_config(train_or_apply: str) -> dict:
     config_file_path = Path(__file__).parent.resolve() / "config.json"
     with open(config_file_path, "r") as f:
         config = json.load(f)
-        print(f"Loaded config: {config}")
     return config[train_or_apply]
 
 

@@ -23,24 +23,7 @@ limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 THRESHOLD_ACCURACY = 0.7
 
 @task
-def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> List[str]:
-    """Retrieves training data from GCS.
-
-    Args:
-        bucket_name (str): Name of the GCS bucket.
-        train_data_gcs_folder (str): GCS folder containing train data.
-
-    Returns:
-        List: Tuple of texts and dict of entities to be used for training.
-    """
-    train_data_local_folder = Path(__file__).parent.parent.resolve() / "train_data"
-    download_from_gcs(bucket_name, train_data_gcs_folder, train_data_local_folder)
-    train_data_files = glob.glob(os.path.join(train_data_local_folder, "*.jsonl"))
-    return train_data_files
-
-
-@task
-def evaluate_ner(tasks: List[dict]) -> dict:
+def evaluate_ner(tasks: bytes) -> dict:
     """Computes accuracy, precision and recall of NER model out of label studio output.
 
     Args:
@@ -158,9 +141,9 @@ def load_model(
 
 @task
 def train_model(
-    train_data: str, nlp: Language, training_iterations: int = 30
+    train_data: str, nlp: Language, training_iterations: int, bucket_out: str, source_blob_name: str
 ) -> Language:
-    """ Uses new labelled data to improve spacy NER model.
+    """ Uses new labelled data to improve spacy NER model. Uploads trained model in GCS.
 
     Args:
         train_data_files (List[str]): List of data filepath to train model on. After being loaded, format \
@@ -195,7 +178,7 @@ def train_model(
                     nlp.update([example], drop=0.35, losses=losses, sgd=optimizer)
                     print("Iteration n°", iteration)
                     print("Losses", losses)
-    upload_to_gcs("wcgl_data", "spacy_model/models/dummy.pkl", pickle.dumps(nlp))
+    upload_to_gcs(bucket_out, source_blob_name, pickle.dumps(nlp))
     return nlp
 
 
@@ -204,23 +187,29 @@ def train_model(
     requests=request_resources,
     limits=limit_resources,
 )
-def train_model_if_necessary(tasks: bytes):#, metrics_dict: dict, model_name: str):
-    metrics_dict = {"dummy": 0.5}
-    model_name = "dummy"
+def train_model_if_necessary(tasks: bytes, metrics_dict: dict, model_name: str, training_iterations: int, bucket_out: str, model_output_blob_name: str):
+    """Checks for model accuracy. If it's high enough, the pipeline stops, else it trains a new model.
+
+    Args:
+        tasks (bytes): Label studio annotations
+        metrics_dict (dict): mapping between model name and accuracy
+        model_name (str): model name from which we get accuracy
+        training_iterations (int): number of training iterations for the spacy NER model
+    """
     if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
         return
     else:
         train_data = format_tasks_for_train(tasks=tasks)
         nlp = load_model(lang="en", from_gcs=False, gcs_bucket="", gcs_source_blob_name="")
-        nlp = train_model(train_data=train_data, nlp=nlp, training_iterations=30)
+        nlp = train_model(train_data=train_data, nlp=nlp, training_iterations=training_iterations, bucket_out=bucket_out, source_blob_name=model_output_blob_name)
 
 
 @workflow
 def main():
     config = load_config("train")
     tasks = load_tasks(bucket_name=config["bucket_label_out_name"], source_blob_name=config["label_studio_output_blob_name"])
-    #metrics_dict = evaluate_ner(tasks=tasks)
-    nlp = train_model_if_necessary(tasks=tasks)#, metrics_dict=metrics_dict, model_name=model_name)
+    metrics_dict = evaluate_ner(tasks=tasks)
+    nlp = train_model_if_necessary(tasks=tasks, metrics_dict=metrics_dict, training_iterations=config["training_iterations"], model_name=config["model_name"], bucket_out=config["bucket_name"], model_output_blob_name=config["model_output_blob_name"])
     return nlp
 
 
