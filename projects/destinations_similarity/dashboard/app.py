@@ -102,16 +102,13 @@ def build_output(
 ) -> pd.DataFrame:
     """_summary_
     Args:
-        dataset (pd.DataFrame): _description_
-        city_name (str): _description_
-        state_name (str): _description_
-        nearest_cities (pd.DataFrame): _description_
-        columns_to_retrieve (List[str]): _description_
+        dataset (pd.DataFrame): dataset scrapper from wikipedia and wikivoyage
+        nearest_cities (pd.DataFrame): output model of the nearest cities
+        columns_to_retrieve (List[str]): list of columns to add to output
     Returns:
         output (pd.DataFrame): _description_
     """
     
-
     output = dataset.merge(nearest_cities, on=['city', 'state'])
 
     output = output[['city', 'state', columns_to_retrieve[0], columns_to_retrieve[1]]]
@@ -155,16 +152,15 @@ if __name__ == '__main__':
         embeddings = wf_execution.outputs["o0"]
         print(embeddings)
     else:
-        embeddings = pd.read_parquet('./embeddings.parquet')
+       # embeddings = pd.read_parquet('./embeddings.parquet')
+        embeddings = pd.read_parquet("https://storage.googleapis.com/dsc-public-info/datasets/flytelab_embeddings.parquet")
         print("Embeddings loaded")
     
-    #wiki_dataset = retrieve_dataset_from_remote("https://storage.googleapis.com/dsc-public-info/datasets/flytelab_dataset.parquet")
-
     wiki_dataset = pd.read_parquet("https://storage.googleapis.com/dsc-public-info/datasets/flytelab_dataset.parquet")
 
     st.write("# Flytelab: destinations_similarity")
     
-    st.write('### Kinder is an adventurous dog who loves to travel! He enjoys specially nature places: beachs, waterfalls, trails and more, which Brazil is not missing. He wants experiences in other cities but he doesnt know where.')
+    st.write('#### Kinder is an adventurous dog who loves to travel! He enjoys specially nature places: beachs, waterfalls, trails and more, which Brazil is not missing. He wants experiences in other cities but he doesnt know where.')
     st.write("## So he is now asking, **where should I go next**?")
 
     beach_kinder = Image.open('beach_kinder.jpeg')
