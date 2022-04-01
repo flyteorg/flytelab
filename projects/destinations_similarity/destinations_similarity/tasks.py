@@ -30,8 +30,8 @@ logging.basicConfig(
 )
 
 # Flyte configuration
-BASE_RESOURCES = Resources(cpu="0.5", mem="500Mi")
-INTENSIVE_RESOURCES = Resources(cpu="1", mem="1Gi", gpu="1")
+BASE_RESOURCES = Resources(cpu="0.5", mem="1Gi")
+INTENSIVE_RESOURCES = Resources(cpu="2", mem="16Gi", gpu="1")
 
 
 @task(retries=3, requests=BASE_RESOURCES)
@@ -212,13 +212,14 @@ def vectorize_columns(
         List[pd.DataFrame]: list of dataframes with city feature vectors
     """
     model = TextVectorizer()
+    model.model.to('cuda')
     column_embeddings = []
 
     LOGGER.info("Generating embeddings for columns.")
 
     # Generate embeddings for each column
     for col in columns_to_vec:
-        inputs_ids = model.encode_inputs(dataframe[col])
+        inputs_ids = model.encode_inputs(dataframe[col]).to('cuda')
         embeddings = model.get_df_embedding(inputs_ids)
         city_embeddings = pd.concat(
             [dataframe[[city_column, state_column]], embeddings], axis=1)
