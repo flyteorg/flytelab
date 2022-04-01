@@ -41,7 +41,10 @@ To run this pipeline locally please run
 
 ### 2. Manual labelling part in Label Studio
 
-<<<< Insert Label Studio documentation and images >>>>
+<p align="center">
+    <img src="docs/label_studio.png" />
+</p>
+
 
 ### 3. NER training pipeline
 1. Retrieves labelled tasks (Label Studio output)
