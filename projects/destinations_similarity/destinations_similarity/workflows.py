@@ -72,7 +72,7 @@ def build_knowledge_base(
     dataframe = (
         conditional("remote_dataset")
         .if_(remote.is_true())      # pylint: disable=no-member
-        .then(tasks.retrieve_dataset_from_remote(url=flyte_file))
+        .then(tasks.retrieve_dataset_from_remote(uri=flyte_file))
         .else_()
         .then(generate_dataset())
     )

@@ -136,7 +136,7 @@ def check_if_remote(uri: str) -> Tuple[bool, FlyteFile]:
 
 
 @task(retries=3, requests=BASE_RESOURCES)
-def retrieve_dataset_from_remote(url: FlyteFile) -> pd.DataFrame:
+def retrieve_dataset_from_remote(uri: FlyteFile) -> pd.DataFrame:
     """Retrieve a dataset from a remote URL.
 
     Args:
@@ -146,12 +146,12 @@ def retrieve_dataset_from_remote(url: FlyteFile) -> pd.DataFrame:
         pd.DataFrame: DataFrame with the dataset.
     """
     # Download file if it has a remote source
-    if url.remote_source is not None:
-        url.download()
+    if uri.remote_source is not None:
+        uri.download()
 
-    dataset_df = pd.read_parquet(url.path)
+    dataset_df = pd.read_parquet(uri.path)
     dataset_df.columns = dataset_df.columns.astype(str)
-    LOGGER.info("Retrieved dataset from '%s'.", url.remote_source or url.path)
+    LOGGER.info("Retrieved dataset from '%s'.", uri.remote_source or uri.path)
     return dataset_df
 
 
