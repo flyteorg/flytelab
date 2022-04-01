@@ -52,4 +52,28 @@ To run this pipeline locally please run
 
 ## Pipeline deployment
 
-<<<< Insert github action explanation >>>>
+The Goal of this pipeline is deploy workflows automatically to the playground on pushed commits
+
+### Steps and flow
+the steps are :
+1. Build the dockerfile of our project
+2. Push the build docker image to the container registery of our GCP project
+3. serialize our workflows using the pyflyte cli
+4. register the packages to our playgroud project
+
+Step 3 and 4 are using external docker based github actions that we made ourselves : [serialize](https://github.com/louisRDSC/FlyteSerializeAction), [register](https://github.com/louisRDSC/flyteRegisterAction)
+
+for all branches except main, the workflows are registered in the development environment. For main the workflows are registered in the staging environment. Future iterations could register them in the production evironment when a tag is created.
+
+In develpment each version of a workflow is named like followed : \<branch name\>-\<datetime\>.
+This allows ourself to easily recognize our work while working simultaneously on different branches.
+
+In staging each version of a workflow is named like followed : \<datetime\>
+
+### How to make it work
+
+4 secrets are required for the pipeline to work :
+- ClIENT_ID : the ID to authenticate with the playground
+- ClIENT_SECRET : The secret to authenticate with the playgroud
+- RUNNER_KEY : The json key encoded in BASE64 of a GCP service account with read and write rights on the gcp bucket where the data il pulled and pushed from.
+- SERVICE_ACCOUNT_KEY : The json key of a service account with write rights on the container registery where we are pushing our images
