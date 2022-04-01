@@ -116,7 +116,7 @@ def apply_model(
             ]
     """
     entities = set()
-    tasks = []
+    labelstudio_tasks = []
     model_name = SPACY_MODEL["en"]
     for tweet in json.loads(tweets_list):
         predictions = []
@@ -125,12 +125,14 @@ def apply_model(
         spans, ents = doc_to_spans(doc)
         entities |= ents
         predictions.append({"model_version": model_name, "result": spans})
-        tasks.append({"data": {"text": text}, "predictions": predictions})
+        labelstudio_tasks.append({"data": {"text": text}, "predictions": predictions})
     with open("tasks.json", mode="w") as f:
-        json.dump(tasks, f, indent=2)
-    json_tasks = json.dumps(tasks)
-    upload_to_gcs(bucket_name, source_blob_name, json_tasks, content_type=None)
-    return json_tasks
+        json.dump(labelstudio_tasks, f, indent=2)
+    json_labelstudio_tasks = json.dumps(labelstudio_tasks)
+    upload_to_gcs(
+        bucket_name, source_blob_name, json_labelstudio_tasks, content_type=None
+    )
+    return json_labelstudio_tasks
 
 
 @workflow

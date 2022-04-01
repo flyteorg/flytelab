@@ -24,11 +24,11 @@ THRESHOLD_ACCURACY = 0.7
 
 
 @task
-def evaluate_ner(tasks: bytes) -> dict:
+def evaluate_ner(labelstudio_tasks: bytes) -> dict:
     """Computes accuracy, precision and recall of NER model out of label studio output.
 
     Args:
-        tasks (list): List of dicts outputs of label studio annotation with following format
+        labelstudio_tasks (list): List of dicts outputs of label studio annotation with following format
                         [
                             {
                             "result": [
@@ -55,7 +55,7 @@ def evaluate_ner(tasks: bytes) -> dict:
     """
     model_acc = dict()
     model_hits = defaultdict(int)
-    for ls_task in json.loads(tasks):
+    for ls_task in json.loads(labelstudio_tasks):
         annotation_result = ls_task["result"][0]["value"]
         for key in annotation_result:
             if key == "id":
@@ -64,7 +64,7 @@ def evaluate_ner(tasks: bytes) -> dict:
             model_version = prediction["model_version"]
             model_hits[model_version] += int(prediction["result"] == annotation_result)
 
-    num_task = len(tasks)
+    num_task = len(labelstudio_tasks)
     for model_name, num_hits in model_hits.items():
         acc = num_hits / num_task
         model_acc[model_name] = acc
@@ -83,24 +83,24 @@ def load_tasks(bucket_name: str, source_blob_name: str) -> bytes:
     Returns:
         str: json dumped tasks
     """
-    tasks = download_bytes_from_gcs(
+    labelstudio_tasks = download_bytes_from_gcs(
         bucket_name=bucket_name, source_blob_name=source_blob_name
     )
-    return tasks
+    return labelstudio_tasks
 
 
 @task
-def format_tasks_for_train(tasks: bytes) -> str:
+def format_tasks_for_train(labelstudio_tasks: bytes) -> str:
     """Format Label Studio output to be trained in spacy custom model.
 
     Args:
-        tasks (str): json dumped tasks
+        labelstudio_tasks (str): json dumped labelstudio_tasks
 
     Returns:
         str: json dumped train data formatted
     """
     train_data = []
-    for ls_task in json.loads(tasks):
+    for ls_task in json.loads(labelstudio_tasks):
         entities = [
             (ent["value"]["start"], ent["value"]["end"], label)
             for ent in ls_task["result"]
@@ -194,7 +194,7 @@ def train_model(
     limits=limit_resources,
 )
 def train_model_if_necessary(
-    tasks: bytes,
+    labelstudio_tasks: bytes,
     metrics_dict: dict,
     model_name: str,
     training_iterations: int,
@@ -204,7 +204,7 @@ def train_model_if_necessary(
     """Checks for model accuracy. If it's high enough, the pipeline stops, else it trains a new model.
 
     Args:
-        tasks (bytes): Label studio annotations
+        labelstudio_tasks (bytes): Label studio annotations
         metrics_dict (dict): mapping between model name and accuracy
         model_name (str): model name from which we get accuracy
         training_iterations (int): number of training iterations for the spacy NER model
@@ -212,9 +212,12 @@ def train_model_if_necessary(
     if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
         return
     else:
-        train_data = format_tasks_for_train(tasks=tasks)
+        train_data = format_tasks_for_train(labelstudio_tasks=labelstudio_tasks)
         nlp = load_model(
-            lang="en", from_gcs=False, gcs_bucket="", gcs_source_blob_name=""
+            lang="en",
+            from_gcs=False,
+            gcs_bucket=bucket_out,
+            gcs_source_blob_name=model_output_blob_name,
         )
         nlp = train_model(
             train_data=train_data,
@@ -228,13 +231,13 @@ def train_model_if_necessary(
 @workflow
 def main():
     config = load_config("train")
-    tasks = load_tasks(
+    labelstudio_tasks = load_tasks(
         bucket_name=config["bucket_label_out_name"],
         source_blob_name=config["label_studio_output_blob_name"],
     )
-    metrics_dict = evaluate_ner(tasks=tasks)
+    metrics_dict = evaluate_ner(labelstudio_tasks=labelstudio_tasks)
     nlp = train_model_if_necessary(
-        tasks=tasks,
+        labelstudio_tasks=labelstudio_tasks,
         metrics_dict=metrics_dict,
         training_iterations=config["training_iterations"],
         model_name=config["model_name"],
