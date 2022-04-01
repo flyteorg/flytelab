@@ -1,7 +1,20 @@
-{
-    "lang": "en",
-    "keyword_list": ["beauty", "skin", "hair"],
-    "max_results": 1000,
-    "train_data_gs_uri": "gs://wcgl_data/spacy_model/training_data/training_data_example.jsonl",
-    "training_iterations": 10
+{"apply":
+    {
+        "lang": "en",
+        "keyword_list": ["beauty", "skin", "hair"],
+        "max_results": 1000,
+        "from_gcs": false,
+        "bucket_name": "wcgl_data",
+        "gcs_spacy_model_blob_name": "",
+        "applied_model_output_blob_name": "label_in/tasks_out.json"
+        },
+ "train":
+ {
+    "bucket_name": "wcgl_data",
+    "training_iterations": 10,
+    "bucket_label_out_name": "wcgl_label_out",
+    "model_name": "dummy",
+    "label_studio_output_blob_name": "annotations.json",
+    "model_output_blob_name": "spacy_model/models/dummy.pkl"
+}
 }
