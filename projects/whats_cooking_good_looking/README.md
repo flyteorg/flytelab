@@ -14,7 +14,7 @@ In order to extract brands in a tweet, we implemented a NER (named entity recogn
 5. 2. If metrics are not good enough, it sends those labeled posts into a training task and goes back into the same piece of pipeline composed of steps 2 - 3 - 4
 
 <p align="center">
-    <img src="/docs/functional_pipeline.png" />
+    <img src="docs/functional_pipeline.png" />
 </p>
 
 ## Actual Solution implementation
