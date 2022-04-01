@@ -42,7 +42,7 @@ To run this pipeline locally please run
 The goal was to create a feedback loop where it was possible to iterate by training NER models based on new manual annotations. We chose to cut into 2 pipelines to get rid of the network constraints that we would have to handle and that were not evaluated in the scope of this hackaton.
 
 To run this pipeline locally please run
-```python whats_cooking_good_looking/apply_ner_workflow.py```
+```python whats_cooking_good_looking/train_ner_workflow.py```
 
 ## Pipeline deployment
 
