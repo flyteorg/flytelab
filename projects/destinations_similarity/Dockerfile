@@ -43,5 +43,8 @@ COPY --chown="${APPUSER}:${APPUSER}" \
     destinations_similarity/ "/home/${APPUSER}/destinations_similarity"
 COPY $config "/home/${APPUSER}/flyte.config"
 
+# Download nltk files
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
 # Tag the image
 ENV FLYTE_INTERNAL_IMAGE="$image"

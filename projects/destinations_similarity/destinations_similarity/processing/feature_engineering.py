@@ -5,25 +5,28 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 
 
+BASE_MODEL = 'neuralmind/bert-base-portuguese-cased'
+
+
 class TextVectorizer():
     """Class used to vectorize text."""
 
-    def __init__(self, model: str = 'neuralmind/bert-base-portuguese-cased') -> None:
+    def __init__(self, model: str = BASE_MODEL) -> None:
         """Initialize class.
-    
+
         Args:
-            model (str): huggingface path    
+            model (str): huggingface path
         """
         self.tokenizer = AutoTokenizer.from_pretrained(
             model, do_lower_case=False)
         self.model = AutoModel.from_pretrained(model)
 
-    def encode_inputs(self, series_text: pd.Series) -> torch.tensor:
+    def encode_inputs(self, series_text: pd.Series) -> torch.Tensor:
         """Encode inputs.
-    
+
         Args:
             series_text (pd.Series): text to be vectorized
-            
+
         Returns:
             torch.tensor: tokens ids
         """
@@ -35,10 +38,10 @@ class TextVectorizer():
 
     def get_df_embedding(self, input_ids: pd.Series) -> pd.DataFrame:
         """Generate DataFrame with all text vector representations.
-    
+
         Args:
             input_ids (torch.tensor): tokens ids
-            
+
         Returns:
             pd.DataFrame: input id vectors
         """

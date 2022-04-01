@@ -16,10 +16,6 @@ from unidecode import unidecode
 from deep_translator import GoogleTranslator
 
 
-nltk.download('punkt')
-nltk.download('stopwords')
-
-
 def lower_text(text: str) -> str:
     """Lower a text.
 

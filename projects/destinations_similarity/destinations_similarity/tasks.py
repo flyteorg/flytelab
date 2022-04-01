@@ -5,7 +5,6 @@ import logging
 from typing import List, Dict, Tuple
 
 import torch
-import faiss
 import pandas as pd
 import numpy as np
 from unidecode import unidecode
@@ -16,7 +15,7 @@ from destinations_similarity.scraper.extractor import WikiExtractor
 from destinations_similarity.scraper.brazilian_cities import (
     get_brazilian_cities_data, get_dataframe)
 from destinations_similarity.processing.text_preprocessing import (
-    translate_description_series, preprocess_text, translate_description)
+    translate_description_series, preprocess_text)
 from destinations_similarity.processing.feature_engineering import (
     TextVectorizer)
 
@@ -31,8 +30,8 @@ logging.basicConfig(
 )
 
 # Flyte configuration
-BASE_RESOURCES = Resources(cpu="0.5", mem="2Gi")
-INTENSIVE_RESOURCES = Resources(cpu="2", mem="16Gi")
+BASE_RESOURCES = Resources(cpu="0.5", mem="500Mi")
+INTENSIVE_RESOURCES = Resources(cpu="1", mem="1Gi", gpu="1")
 
 
 @task(retries=3, requests=BASE_RESOURCES)
@@ -127,7 +126,7 @@ def merge_dataframes(
     return pd.concat([df_x, df_y[df_y_columns]], axis=1, join=join)
 
 
-@task
+@task(cache=True, cache_version='1.0')
 def check_if_remote(uri: str) -> Tuple[bool, FlyteFile]:
     """Check if a URI points to a remote file."""
     if uri:
@@ -155,7 +154,7 @@ def retrieve_dataset_from_remote(uri: FlyteFile) -> pd.DataFrame:
     return dataset_df
 
 
-@task(requests=INTENSIVE_RESOURCES)
+@task(cache=True, cache_version='1.0', requests=INTENSIVE_RESOURCES)
 def preprocess_input_data(
     dataframe: pd.DataFrame, columns_to_translate: List[str],
     columns_to_process: List[str], wikivoyage_summary: str
@@ -196,7 +195,7 @@ def preprocess_input_data(
     return dataframe
 
 
-@task(requests=INTENSIVE_RESOURCES)
+@task(cache=True, cache_version='1.0', requests=INTENSIVE_RESOURCES)
 def vectorize_columns(
     dataframe: pd.DataFrame, columns_to_vec: List[str],
     city_column: str, state_column: str
@@ -230,14 +229,14 @@ def vectorize_columns(
     return column_embeddings
 
 
-@task(requests=INTENSIVE_RESOURCES)
+@task(cache=True, cache_version='1.0', requests=INTENSIVE_RESOURCES)
 def build_mean_embedding(
     list_dataframes: List[pd.DataFrame]
 ) -> pd.DataFrame:
     """Build mean embeddings for cities.
 
     Args:
-        list_dataframes (List[pd.DataFrame]): list of dataframes with 
+        list_dataframes (List[pd.DataFrame]): list of dataframes with
             city feature vectors
 
     Returns:
@@ -259,118 +258,3 @@ def build_mean_embedding(
 
     LOGGER.info("Mean embeddings calculated.")
     return aux_mean
-
-
-@task(requests=BASE_RESOURCES)
-def get_k_nearest(
-    embeddings: pd.DataFrame, k_neighbors: int,
-    city_name: str, state_name: str
-) -> pd.DataFrame:
-    """Retrieve the k-nearest neighbors.
-
-    Args:
-        embeddings (pd.DataFrame): city vectors
-        k_neighbors (int): number os similar cities to present
-        city_name (str): last city visited
-        state_name (str): last state visited
-
-    Returns:
-        pd.DataFrame: the cities most similar to city_name
-    """
-    # Retrieve vectors to search
-    vec_name = embeddings[~(
-        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
-    )].reset_index(drop=True)
-    vec = vec_name.drop(['city', 'state'], axis=1)
-
-    # Initialize faiss
-    index = faiss.IndexFlatL2(vec.shape[1])
-    index.add(  # pylint: disable=no-value-for-parameter
-        np.ascontiguousarray(np.float32(vec.values))
-    )
-
-    # Build query
-    query = embeddings[(
-        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
-    )].drop(['city', 'state'], axis=1).values
-    query = np.float32(query)
-
-    # Retrieve k-nearest neighbors
-    _, indexes = index.search(  # pylint: disable=no-value-for-parameter
-        query, k_neighbors
-    )
-    nearest = vec_name[['city', 'state']].iloc[indexes[0]]
-
-    return nearest
-
-
-@task(requests=BASE_RESOURCES)
-def build_output(
-    dataframe: pd.DataFrame, city_name: str, state_name: str,
-    nearest_cities: pd.DataFrame, see_wikivoyage_column: str,
-    do_wikivoyage_column: str
-) -> dict:
-    """Build the output of the data.
-    
-    Args:
-        dataframe (pd.DataFrame): remote dataframe with cities features
-        city_name (str): last city visited
-        state_name (str): last state visited
-        nearest_cities (pd.DataFrame): the cities most similar to city_name
-        see_wikivoyage_column (pd.DataFrame): to see information column name 
-            from wikivoyage
-        do_wikivoyage_column (pd.DataFrame): to do information column name 
-            from wikivoyage
-
-    Returns:
-        dict: the cities most similar to city_name e those informations
-    """
-    # Retrieve 'See' and 'Do' from actual city
-    pois_target = dataframe[
-        (dataframe['city'] == city_name) & (dataframe['state'] == state_name)
-    ][[see_wikivoyage_column, do_wikivoyage_column]]
-
-    # Build output
-    to_see_actual = (
-        translate_description(pois_target[see_wikivoyage_column].iloc[0], 'en')
-        or "\nOops... Unfortunately we don't have the record of what Kin did "
-           "in this city :/\n"
-    )
-    to_do_actual = (
-        translate_description(pois_target[do_wikivoyage_column].iloc[0], 'en')
-        or "\nOops... Unfortunately we don't have the record of what Kin did "
-           "in this city :/\n"
-    )
-
-    # Retrieve 'See' and 'Do' for similar cities
-    to_see_nearest = []
-    to_do_nearest = []
-
-    for _, row in nearest_cities.iterrows():
-        pois_suggestion = dataframe[
-            (dataframe['city'] == row.city) & (dataframe['state'] == row.state)
-        ][[see_wikivoyage_column, do_wikivoyage_column]]
-
-        to_see_nearest.append(
-            translate_description(
-                pois_suggestion[see_wikivoyage_column].iloc[0], 'en')
-            or "\nOops... Unfortunately we don't have the record of what Kin "
-               "did in this city :/\n"
-        )
-        to_do_nearest.append(
-            translate_description(
-                pois_suggestion[do_wikivoyage_column].iloc[0], 'en')
-            or "\nOops... Unfortunately we don't have the record of what Kin "
-               "did in this city :/\n"
-        )
-
-    output = {
-        "actual_city": [city_name, state_name],
-        "actual_city_to_see": to_see_actual,
-        "actual_city_to_do": to_do_actual,
-        "nearest_cities": list(nearest_cities.values.tolist()),
-        "nearest_to_see": to_see_nearest,
-        "nearest_to_do": to_do_nearest
-    }
-
-    return output

@@ -1,7 +1,5 @@
 """Workflows for the destinations_similarity Flyte project."""
 
-import os
-import json
 from datetime import timedelta
 from typing import List
 
@@ -9,14 +7,6 @@ import pandas as pd
 from flytekit import workflow, conditional, LaunchPlan, FixedRate
 
 from destinations_similarity import tasks
-
-
-# Retrieve configuration file
-CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(CURRENT_DIRECTORY, 'config.json')
-
-with open(CONFIG_PATH, 'r', encoding='utf-8') as file_desc:
-    CONFIG = json.load(file_desc)
 
 
 @workflow
@@ -96,51 +86,9 @@ def build_knowledge_base(
     return city_vectors
 
 
-@workflow
-def inference(
-    dataframe: pd.DataFrame, dataframe_vectorized: pd.DataFrame,
-    k_neighbors: int, city_name: str, state_name: str,
-    see_wikivoyage_column: pd.DataFrame, do_wikivoyage_column: pd.DataFrame
-) -> dict:
-    """Infer data.
-
-    Args:
-        dataframe (pd.DataFrame): remote dataframe with cities features
-        dataframe_vectorized (pd.DataFrame): cities vector dataframe
-        k_neighbors (int): number os similar cities to present
-        city_name (str): last city visited
-        state_name (str): last state visited
-        see_wikivoyage_column (pd.DataFrame): to see information 
-            from wikivoyage
-        do_wikivoyage_column (pd.DataFrame): to do information 
-            from wikivoyage
-
-    Returns:
-        dict: model suggestions with cities 
-                and their information
-    """
-    nearest_cities = tasks.get_k_nearest(
-        embeddings=dataframe_vectorized,
-        k_neighbors=k_neighbors,
-        city_name=city_name,
-        state_name=state_name
-    )
-
-    output = tasks.build_output(
-        dataframe=dataframe,
-        nearest_cities=nearest_cities,
-        see_wikivoyage_column=see_wikivoyage_column,
-        do_wikivoyage_column=do_wikivoyage_column,
-        city_name=city_name,
-        state_name=state_name
-    )
-
-    return output
-
-
 # Launch plans
 build_knowledge_base_lp = LaunchPlan.get_or_create(
-    name='build_knowledge_base_lp',
+    name='build_knowledge_base_default_lp',
     workflow=build_knowledge_base,
     default_inputs={
         'columns_to_translate': [
