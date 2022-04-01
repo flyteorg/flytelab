@@ -12,6 +12,8 @@
  {
     "bucket_name": "wcgl_data",
     "train_data_gcs_folder": "spacy_model/training_data",
-    "training_iterations": 10
+    "training_iterations": 10,
+    "bucket_label_out_name": "wcgl_label_out",
+    "label_studio_output_blob_name": "annotations.json"
  }
 }

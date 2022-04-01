@@ -1,5 +1,6 @@
 import glob
 import json
+import pickle
 import os
 import random
 from collections import defaultdict
@@ -11,7 +12,7 @@ from flytekit import Resources, dynamic, task, workflow
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
-from utils import download_from_gcs, load_config
+from utils import download_bytes_from_gcs, download_from_gcs, load_config, upload_to_gcs
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -19,6 +20,7 @@ CACHE_VERSION = "2.2"
 request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
+THRESHOLD_ACCURACY = 0.7
 
 @task
 def retrieve_train_data_path(bucket_name: str, train_data_gcs_folder: str) -> List[str]:
@@ -69,12 +71,12 @@ def evaluate_ner(tasks: List[dict]) -> dict:
     """
     model_acc = dict()
     model_hits = defaultdict(int)
-    for task in tasks:
-        annotation_result = task["result"][0]["value"]
+    for ls_task in json.loads(tasks):
+        annotation_result = ls_task["result"][0]["value"]
         for key in annotation_result:
             if key == "id":
                 annotation_result.pop("id")
-        for prediction in task["predictions"]:
+        for prediction in ls_task["predictions"]:
             model_version = prediction["model_version"]
             model_hits[model_version] += int(prediction["result"] == annotation_result)
 
@@ -87,7 +89,7 @@ def evaluate_ner(tasks: List[dict]) -> dict:
 
 
 @task
-def load_tasks(bucket_name: str, source_blob_name: str) -> str:
+def load_tasks(bucket_name: str, source_blob_name: str) -> bytes:
     """Loads Label Studio annotations.
 
     Args:
@@ -97,25 +99,14 @@ def load_tasks(bucket_name: str, source_blob_name: str) -> str:
     Returns:
         str: json dumped tasks
     """
-    Path("tmp").mkdir(parents=True, exist_ok=True)
-    local_folder = download_from_gcs(
+    tasks = download_bytes_from_gcs(
         bucket_name=bucket_name,
-        source_blob_name=source_blob_name,
-        destination_folder="tmp",
-    )
-    tasks = []
-    for filename in os.listdir(local_folder):
-        with open(os.path.join(local_folder, filename), "r") as f:
-            annotations = json.load(f)
-        if isinstance(annotations, dict):
-            tasks.append(annotations)
-        elif isinstance(annotations, list):
-            tasks.extend(annotations)
-    return json.dumps(tasks)
+        source_blob_name=source_blob_name)
+    return tasks
 
 
 @task
-def format_tasks_for_train(tasks: str) -> str:
+def format_tasks_for_train(tasks: bytes) -> str:
     """Format Label Studio output to be trained in spacy custom model.
 
     Args:
@@ -125,16 +116,45 @@ def format_tasks_for_train(tasks: str) -> str:
         str: json dumped train data formatted
     """
     train_data = []
-    for task in json.loads(tasks):
+    for ls_task in json.loads(tasks):
         entities = [
-            (ent["start"], ent["end"], label)
-            for ent in task["results"]
-            for label in ent["labels"]
+            (ent["value"]["start"], ent["value"]["end"], label)
+            for ent in ls_task["result"]
+            for label in ent["value"]["labels"]
         ]
         if entities != []:
-            train_data.append((task["train"]["data"]["text"], {"entities": entities}))
+            train_data.append((ls_task["task"]["data"]["text"], {"entities": entities}))
     return json.dumps(train_data)
 
+
+@task
+def load_model(
+    lang: str,
+    from_gcs: bool,
+    gcs_bucket: str,
+    gcs_source_blob_name: str,
+) -> bytes:
+    """Loads spacy model either from gcs if specified or given the source language.
+
+    Args:
+        lang (str): Language in which tweets must be written(iso-code).
+        from_gcs (bool): True if needs to download custom spacy model from gcs.
+        gcs_bucket (str): bucket name where to retrieve spacy model if from_gcs.
+        gcs_source_blob_name (str, optional): blob name where to retrieve spacy model if from_gcs.
+
+    Returns:
+        Language: spacy model
+    """
+    if from_gcs:
+        Path("tmp").mkdir(parents=True, exist_ok=True)
+        output_filename = download_from_gcs(
+            gcs_bucket, gcs_source_blob_name, "tmp", explicit_filepath=True
+        )[0]
+        nlp = spacy.load(output_filename)
+    else:
+        model_name = SPACY_MODEL[lang]
+    nlp = spacy.load(model_name)
+    return nlp
 
 @task
 def train_model(
@@ -175,6 +195,7 @@ def train_model(
                     nlp.update([example], drop=0.35, losses=losses, sgd=optimizer)
                     print("Iteration n°", iteration)
                     print("Losses", losses)
+    upload_to_gcs("wcgl_data", "spacy_model/models/dummy.pkl", pickle.dumps(nlp))
     return nlp
 
 
@@ -183,46 +204,24 @@ def train_model(
     requests=request_resources,
     limits=limit_resources,
 )
-def init_model(
-    bucket_name: str,
-    train_data_gcs_folder: str,
-    training_iterations: int = 30,
-    lang: str = "en",
-) -> Language:
-    """Initialize Spacy Model. If train data is available on GCS bucket, train a model.
-
-    Args:
-        bucket_name (str): Name of the bucket to retrieve training data from.
-        train_data_gcs_folder (str): Path to training data folder in GCS bucket.
-        training_iterations (int, optional): Number of training iterations. Defaults to 30.
-        lang (str, optional): Language of Spacy model and texts. Defaults to "en".
-
-    Returns:
-        Language: Spacy model, trained if train data has been downloaded.
-    """
-    nlp = spacy.load(SPACY_MODEL[lang])
-    train_data_files = retrieve_train_data_path(
-        bucket_name=bucket_name, train_data_gcs_folder=train_data_gcs_folder
-    )
-    if train_data_files:
-        print("Performing model training with downloaded training data...")
-        nlp = train_model(
-            train_data_files=train_data_files,
-            nlp=nlp,
-            training_iterations=training_iterations,
-        )
-        print("Spacy model has been trained !")
-    return nlp
+def train_model_if_necessary(tasks: bytes):#, metrics_dict: dict, model_name: str):
+    metrics_dict = {"dummy": 0.5}
+    model_name = "dummy"
+    if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
+        return
+    else:
+        train_data = format_tasks_for_train(tasks=tasks)
+        nlp = load_model(lang="en", from_gcs=False, gcs_bucket="", gcs_source_blob_name="")
+        nlp = train_model(train_data=train_data, nlp=nlp, training_iterations=30)
 
 
 @workflow
 def main():
     config = load_config("train")
-    tasks = load_tasks(config["gcs_bucket_in"], config["gcs_blob_in"])
-    metrics_dict = evaluate_ner(tasks)  # if metrics are good then stop
-    train_data = format_tasks_for_train(tasks)
-    train_model(train_data)
-    return
+    tasks = load_tasks(bucket_name=config["bucket_label_out_name"], source_blob_name=config["label_studio_output_blob_name"])
+    #metrics_dict = evaluate_ner(tasks=tasks)
+    nlp = train_model_if_necessary(tasks=tasks)#, metrics_dict=metrics_dict, model_name=model_name)
+    return nlp
 
 
 if __name__ == "__main__":
