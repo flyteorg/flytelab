@@ -61,9 +61,9 @@ def build_knowledge_base(
         PythonPickledFile: The generated dataset.
 
     Args:
-        columns_to_translate (List[str]): _description_
-        columns_to_process (List[str]): _description_
-        summary_wikivoyage_column_name (str): _description_
+        columns_to_translate (List[str]): city features to be translated
+        columns_to_process (List[str]): city features to be processed
+        summary_wikivoyage_column_name (str): summary wikivoyage column name
         remote_dataset (str, optional): Remote dataset's URL. Generates
             dataset if no path is specified.
 
@@ -108,17 +108,17 @@ def inference(
     """Infer data.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        dataframe_vectorized (pd.DataFrame): _description_
-        k_neighbors (int): _description_
-        vector_dim (int): _description_
-        actual_city_name (str): _description_
-        see_wikivoyage (pd.DataFrame): _description_
-        do_wikivoyage (pd.DataFrame): _description_
-        city_column (str): _description_
+        dataframe (pd.DataFrame): remote dataframe with cities features
+        dataframe_vectorized (pd.DataFrame): cities vector dataframe
+        k_neighbors (int): number os similar cities to present
+        actual_city_name (str): last city visited
+        see_wikivoyage (pd.DataFrame): to see information from wikivoyage
+        do_wikivoyage (pd.DataFrame): to do information from wikivoyage
+        city_column (str): city column name
 
     Returns:
-        dict: _description_
+        dict: model suggestions with cities 
+                and their information
     """
     nearest_cities = tasks.get_k_nearest(
         embeddings=dataframe_vectorized,

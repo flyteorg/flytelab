@@ -163,12 +163,13 @@ def preprocess_input_data(
     """Preprocess the scraped data.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        columns_to_translate (List[str]): _description_
-        columns_to_process (List[str]): _description_
+        dataframe (pd.DataFrame): remote dataframe with cities features
+        columns_to_translate (List[str]): city features to be translated
+        columns_to_process (List[str]): city features to be processed
+        wikivoyage_summary (str): summary wikivoyage column name
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: remote dataframe pre-processed
     """
     LOGGER.info("Preprocessing input data.")
 
@@ -203,13 +204,13 @@ def vectorize_columns(
     """Generate embeddings with the cities' infos.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        columns_to_vec (List[str]): _description_
-        city_column (str): _description_
-        state_column (str): _description_
+        dataframe (pd.DataFrame): remote dataset pre-processed
+        columns_to_vec (List[str]): city features to be vectorized
+        city_column (str): city column name
+        state_column (str): state column name
 
     Returns:
-        List[pd.DataFrame]: _description_
+        List[pd.DataFrame]: list of dataframes with city feature vectors
     """
     model = TextVectorizer()
     column_embeddings = []
@@ -236,10 +237,11 @@ def build_mean_embedding(
     """Build mean embeddings for cities.
 
     Args:
-        list_dataframes (List[pd.DataFrame]): _description_
+        list_dataframes (List[pd.DataFrame]): list of dataframes with 
+                                                city feature vectors
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: city vectors
     """
     LOGGER.info("Building mean embeddings.")
 
@@ -267,14 +269,13 @@ def get_k_nearest(
     """Retrieve the k-nearest neighbors.
 
     Args:
-        dataframe (pd.DataFrame): _description_
-        kneighborhood (int): _description_
-        vector_dim (int): _description_
-        city_name (str): _description_
-        city_column (str): _description_
+        dataframe (pd.DataFrame): city vectors
+        kneighborhood (int): number os similar cities to present
+        city_name (str): last city visited
+        city_column (str): city column name
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: the cities most similar to city_name
     """
     # Retrieve vectors to search
     vec_name = embeddings[~(
@@ -310,17 +311,19 @@ def build_output(
     do_wikivoyage_column: str
 ) -> dict:
     """Build the output of the data.
-
+    
     Args:
-        dataframe (pd.DataFrame): _description_
-        city_name (str): _description_
-        state_name (str): _description_
-        nearest_cities (pd.DataFrame): _description_
-        see_wikivoyage_column (str): _description_
-        do_wikivoyage_column (str): _description_
+        dataframe (pd.DataFrame): remote dataframe with cities features
+        city_name (str): last city visited
+        state_name (str): last state visited
+        nearest_cities (pd.DataFrame): the cities most similar to city_name
+        see_wikivoyage (pd.DataFrame): to see information column name 
+                                        from wikivoyage
+        do_wikivoyage (pd.DataFrame): to do information column name 
+                                        from wikivoyage
 
     Returns:
-        dict: _description_
+        dict: the cities most similar to city_name e those informations
     """
     # Retrieve 'See' and 'Do' from actual city
     pois_target = dataframe[
