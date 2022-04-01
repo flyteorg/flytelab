@@ -212,7 +212,9 @@ def train_model_if_necessary(
         training_iterations (int): number of training iterations for the spacy NER model
     """
     if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
-        print(f"No need to train. Accuracy of {metrics_dict[model_name]} is above threshold {THRESHOLD_ACCURACY}")
+        print(
+            f"No need to train. Accuracy of {metrics_dict[model_name]} is above threshold {THRESHOLD_ACCURACY}"
+        )
         return
     else:
         train_data = format_tasks_for_train(labelstudio_tasks=labelstudio_tasks)
@@ -233,6 +235,11 @@ def train_model_if_necessary(
 
 @workflow
 def main():
+    """Main training workflow evaluating model based on labelled observations.
+    * If accuracy is high enough, the pipeline ends
+    * If accuracy is below threshold, the pipeline trains a new model based on those
+      observations and dumps it on GCS
+    """
     config = load_config("train")
     labelstudio_tasks = load_tasks(
         bucket_name=config["bucket_label_out_name"],
