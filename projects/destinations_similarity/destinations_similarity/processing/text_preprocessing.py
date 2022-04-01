@@ -1,5 +1,8 @@
 """Text preprocessing tools."""
 
+# pylama: ignore=W0611
+# pylint: disable=unused-import,broad-except
+
 import re
 from typing import List
 from string import punctuation
@@ -19,7 +22,7 @@ nltk.download('stopwords')
 
 def lower_text(text: str) -> str:
     """Lower a text.
-    
+
     Args:
         text (str): text to be lowered
 
@@ -31,10 +34,10 @@ def lower_text(text: str) -> str:
 
 def clean_text(texts: str) -> str:
     """Remove unnecessary parts of the text.
-    
+
     Args:
         text (str): text to be cleaned
-        
+
     Returns:
         str: cleaned text
     """
@@ -68,13 +71,13 @@ def clean_text(texts: str) -> str:
     return text
 
 
-def remove_stopwords(list_tokens: List[str], 
-                    stopword: List[str] = stopwords) -> str:
+def remove_stopwords(list_tokens: List[str],
+                     stopword: List[str] = stopwords) -> str:
     """Remove stopwords of the text.
-    
+
     Args:
         list_tokens (List[str]): list of sentence tokens
-        
+
     Returns:
         List[str]: text without stopwords
     """
@@ -90,10 +93,10 @@ def remove_stopwords(list_tokens: List[str],
 
 def tokenizer(text: str) -> List[str]:
     """Tokenize the text.
-    
+
     Args:
         text (str): text to be tokenized
-        
+
     Returns:
         List[str]: list of sentence tokens
     """
@@ -102,11 +105,11 @@ def tokenizer(text: str) -> List[str]:
 
 def preprocess_text(dataframe: pd.DataFrame, column_name: str) -> pd.Series:
     """Execute all of the preprocess methods.
-    
+
     Args:
         dataframe (pd.DataFrame): dataframe with column to be processed
         column_name (str): column name to be processed
-        
+
     Returns:
         pd.Series: column processed
     """
@@ -121,12 +124,12 @@ def translate_description_series(
     dataframe: pd.DataFrame, column_name: str, target_lang: str = 'pt'
 ) -> pd.Series:
     """Translate columns to another language.
-    
+
     Args:
         dataframe (pd.DataFrame): dataframe with column to be translated
         column_name (str): column name to be translated
         target_lang (str): taget language
-        
+
     Returns:
         pd.Series: column translated
     """
@@ -140,16 +143,16 @@ def translate_description_series(
 
 def translate_description(text: str, target_lang: str = 'pt') -> str:
     """Translate non-portuguese text.
-    
+
     Args:
         text (str): column name to be translated
         target_lang (str): taget language
-        
+
     Returns:
         str: text translated
     """
     try:
         return GoogleTranslator(
             source='auto', target=target_lang).translate(text)
-    except:
+    except Exception:
         return text
