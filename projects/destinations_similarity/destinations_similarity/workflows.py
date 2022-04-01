@@ -57,9 +57,6 @@ def build_knowledge_base(
 ) -> pd.DataFrame:
     """Generate knowledge database.
 
-    Returns:
-        PythonPickledFile: The generated dataset.
-
     Args:
         columns_to_translate (List[str]): _description_
         columns_to_process (List[str]): _description_
@@ -75,7 +72,7 @@ def build_knowledge_base(
     dataframe = (
         conditional("remote_dataset")
         .if_(remote.is_true())      # pylint: disable=no-member
-        .then(tasks.retrieve_dataset_from_remote(url=flyte_file))
+        .then(tasks.retrieve_dataset_from_remote(uri=flyte_file))
         .else_()
         .then(generate_dataset())
     )
