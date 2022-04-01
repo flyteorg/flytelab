@@ -2,7 +2,7 @@
     {
         "lang": "en",
         "keyword_list": ["beauty", "skin", "hair"],
-        "max_results": 5,
+        "max_results": 1000,
         "from_gcs": false,
         "bucket_name": "wcgl_data",
         "gcs_spacy_model_blob_name": "",

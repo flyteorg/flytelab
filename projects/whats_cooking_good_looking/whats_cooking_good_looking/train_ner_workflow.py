@@ -212,6 +212,7 @@ def train_model_if_necessary(
         training_iterations (int): number of training iterations for the spacy NER model
     """
     if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
+        print(f"No need to train. Accuracy of {metrics_dict[model_name]} is above threshold {THRESHOLD_ACCURACY}")
         return
     else:
         train_data = format_tasks_for_train(labelstudio_tasks=labelstudio_tasks)
