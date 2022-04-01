@@ -5,9 +5,9 @@ from typing import List
 import spacy
 from flytekit import Resources, task, workflow
 from snscrape.modules.twitter import TwitterSearchScraper
-from utils import doc_to_spans, load_config
+from utils import doc_to_spans, download_from_gcs, load_config, upload_to_gcs
 
-from whats_cooking_good_looking.utils import download_from_gcs
+# from whats_cooking_good_looking.utils import download_from_gcs
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -86,7 +86,9 @@ def load_model(
 
 
 @task
-def apply_model(nlp: bytes, tweets_list: str) -> str:
+def apply_model(
+    nlp: bytes, tweets_list: str, bucket_name: str, source_blob_name: str
+) -> str:
     """Applies spacy model to each tweet to extract entities from and convert them into
     Label studio task format.
 
@@ -126,7 +128,9 @@ def apply_model(nlp: bytes, tweets_list: str) -> str:
         tasks.append({"data": {"text": text}, "predictions": predictions})
     with open("tasks.json", mode="w") as f:
         json.dump(tasks, f, indent=2)
-    return json.dumps(tasks)
+    json_tasks = json.dumps(tasks)
+    upload_to_gcs(bucket_name, source_blob_name, json_tasks, content_type=None)
+    return json_tasks
 
 
 @workflow
@@ -162,9 +166,14 @@ def main() -> str:
         lang=config["lang"],
         from_gcs=config["from_gcs"],
         gcs_bucket=config["bucket_name"],
-        gcs_source_blob_name=config["gcs_blob_name"],
+        gcs_source_blob_name=config["gcs_spacy_model_blob_name"],
     )
-    return apply_model(nlp=nlp, tweets_list=tweets_list)
+    return apply_model(
+        nlp=nlp,
+        tweets_list=tweets_list,
+        bucket_name=config["bucket_name"],
+        source_blob_name=config["applied_model_output_blob_name"],
+    )
 
 
 if __name__ == "__main__":

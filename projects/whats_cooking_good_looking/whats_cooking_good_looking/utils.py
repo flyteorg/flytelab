@@ -97,3 +97,10 @@ def download_from_gcs(
     if explicit_filepath:
         return filepath_list
     return destination_folder
+
+
+def upload_to_gcs(bucket_name, source_blob_name, data, content_type=None):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+    blob.upload_from_string(data, content_type=content_type)

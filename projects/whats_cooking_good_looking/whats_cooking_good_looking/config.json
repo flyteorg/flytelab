@@ -4,8 +4,9 @@
         "keyword_list": ["beauty", "skin", "hair"],
         "max_results": 5,
         "from_gcs": false,
-        "bucket_name": "",
-        "gcs_blob_name": ""
+        "bucket_name": "wcgl_data",
+        "gcs_spacy_model_blob_name": "",
+        "applied_model_output_blob_name": "label_in/tasks_out.json"
         },
  "train":
  {
