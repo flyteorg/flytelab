@@ -5,7 +5,7 @@
 ARG image
 ARG config
 
-FROM python:3.9-slim-buster
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
 
 # Defining environment variables
 ENV APPUSER="flyte"
@@ -42,6 +42,9 @@ RUN python -m pip install -U pip && \
 COPY --chown="${APPUSER}:${APPUSER}" \
     destinations_similarity/ "/home/${APPUSER}/destinations_similarity"
 COPY $config "/home/${APPUSER}/flyte.config"
+
+# Download nltk files
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
 # Tag the image
 ENV FLYTE_INTERNAL_IMAGE="$image"

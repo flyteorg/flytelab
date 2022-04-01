@@ -1,7 +1,7 @@
 """Workflows for the destinations_similarity Flyte project."""
 
-from typing import Dict
 from datetime import timedelta
+from typing import List
 
 import pandas as pd
 from flytekit import workflow, conditional, LaunchPlan, FixedRate
@@ -16,7 +16,7 @@ def generate_dataset() -> pd.DataFrame:
     Returns:
         pd.DataFrame: The generated dataset.
     """
-    base_data = tasks.get_base_data(generate_city_id=True)
+    base_data = tasks.get_base_data(generate_city_id=False)
 
     # Retrieve data from pt.wikipedia.org
     data_wikipedia_pt = tasks.scrap_wiki(
@@ -41,34 +41,71 @@ def generate_dataset() -> pd.DataFrame:
 
 
 @workflow
-def train_model(remote_dataset: str = "") -> Dict[str, pd.DataFrame]:
-    """Retrieve dataset and train model.
+def build_knowledge_base(
+    columns_to_translate: List[str], columns_to_process: List[str],
+    summary_wikivoyage_column_name: str, remote_dataset: str = ""
+) -> pd.DataFrame:
+    """Generate knowledge database.
 
     Args:
-        dataset_url (str, optional): Remote dataset's URL. Defaults to ''.
+        columns_to_translate (List[str]): city features to be translated
+        columns_to_process (List[str]): city features to be processed
+        summary_wikivoyage_column_name (str): summary wikivoyage column name
+        remote_dataset (str, optional): Remote dataset's URL. Generates
+            dataset if no path is specified.
 
     Returns:
-        dict: Information about the model.
+        pd.DataFrame: The generated dataset.
     """
-    dataset = (
+    remote, flyte_file = tasks.check_if_remote(uri=remote_dataset)
+
+    dataframe = (
         conditional("remote_dataset")
-        .if_(remote_dataset != "")
-        .then(tasks.retrieve_dataset_from_remote(url=remote_dataset))
+        .if_(remote.is_true())      # pylint: disable=no-member
+        .then(tasks.retrieve_dataset_from_remote(uri=flyte_file))
         .else_()
         .then(generate_dataset())
     )
 
-    # TODO: Train model
+    dataframe_processed = tasks.preprocess_input_data(
+        dataframe=dataframe,
+        columns_to_translate=columns_to_translate,
+        columns_to_process=columns_to_process,
+        wikivoyage_summary=summary_wikivoyage_column_name
+    )
 
-    return {'dataset': dataset}
+    list_dataframes = tasks.vectorize_columns(
+        dataframe=dataframe_processed,
+        columns_to_vec=columns_to_process,
+        city_column='city',
+        state_column='state'
+    )
+
+    city_vectors = tasks.build_mean_embedding(list_dataframes=list_dataframes)
+
+    return city_vectors
 
 
 # Launch plans
-
-train_model_lp = LaunchPlan.get_or_create(
-    name='train_model_lp',
-    workflow=train_model,
+build_knowledge_base_lp = LaunchPlan.get_or_create(
+    name='build_knowledge_base_default_lp',
+    workflow=build_knowledge_base,
     default_inputs={
+        'columns_to_translate': [
+            "see_wikivoyage_en",
+            "do_wikivoyage_en",
+            "summary_wikivoyage_en"
+        ],
+        'columns_to_process': [
+            "summary_wikipedia_pt",
+            "história_wikipedia_pt",
+            "geografia_wikipedia_pt",
+            "clima_wikipedia_pt",
+            "see_wikivoyage_en",
+            "do_wikivoyage_en",
+            "summary_wikivoyage_en"
+        ],
+        'summary_wikivoyage_column_name': "summary_wikivoyage_en",
         'remote_dataset':
         "https://storage.googleapis.com"
         "/dsc-public-info/datasets/flytelab_dataset.parquet",

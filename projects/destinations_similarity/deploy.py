@@ -96,7 +96,7 @@ def docker_build(tag: str, remote: bool) -> docker.models.images.Image:
     typer.echo(f"Building image: {tag}...")
     image, build_logs = client.images.build(
         path=".", dockerfile="Dockerfile", tag=tag,
-        buildargs={"image": tag, "config": str(config)}
+        buildargs={"image": tag, "config": str(config)}, rm=True,
     )
 
     for line in build_logs:
