@@ -5,9 +5,9 @@ from typing import List
 import spacy
 from flytekit import Resources, task, workflow
 from snscrape.modules.twitter import TwitterSearchScraper
-from utils import doc_to_spans, download_from_gcs, load_config, upload_to_gcs
 
-# from whats_cooking_good_looking.utils import download_from_gcs
+from whats_cooking_good_looking.utils import (doc_to_spans, download_from_gcs,
+                                              load_config, upload_to_gcs)
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 

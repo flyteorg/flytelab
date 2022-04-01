@@ -104,9 +104,9 @@ def download_bytes_from_gcs(bucket_name, source_blob_name):
     blob = bucket.blob(source_blob_name)
     return blob.download_as_string()
 
+
 def upload_to_gcs(bucket_name, source_blob_name, data, content_type=None):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
     blob.upload_from_string(data, content_type=content_type)
-

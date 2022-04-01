@@ -1,18 +1,18 @@
-import glob
 import json
 import pickle
-import os
 import random
 from collections import defaultdict
 from pathlib import Path
-from typing import List
 
 import spacy
 from flytekit import Resources, dynamic, task, workflow
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
-from utils import download_bytes_from_gcs, download_from_gcs, load_config, upload_to_gcs
+
+from whats_cooking_good_looking.utils import (download_bytes_from_gcs,
+                                              download_from_gcs, load_config,
+                                              upload_to_gcs)
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -21,6 +21,7 @@ request_resources = Resources(cpu="1", mem="500Mi", storage="500Mi")
 limit_resources = Resources(cpu="2", mem="1000Mi", storage="1000Mi")
 
 THRESHOLD_ACCURACY = 0.7
+
 
 @task
 def evaluate_ner(tasks: bytes) -> dict:
@@ -83,8 +84,8 @@ def load_tasks(bucket_name: str, source_blob_name: str) -> bytes:
         str: json dumped tasks
     """
     tasks = download_bytes_from_gcs(
-        bucket_name=bucket_name,
-        source_blob_name=source_blob_name)
+        bucket_name=bucket_name, source_blob_name=source_blob_name
+    )
     return tasks
 
 
@@ -139,9 +140,14 @@ def load_model(
     nlp = spacy.load(model_name)
     return nlp
 
+
 @task
 def train_model(
-    train_data: str, nlp: Language, training_iterations: int, bucket_out: str, source_blob_name: str
+    train_data: str,
+    nlp: Language,
+    training_iterations: int,
+    bucket_out: str,
+    source_blob_name: str,
 ) -> Language:
     """ Uses new labelled data to improve spacy NER model. Uploads trained model in GCS.
 
@@ -187,7 +193,14 @@ def train_model(
     requests=request_resources,
     limits=limit_resources,
 )
-def train_model_if_necessary(tasks: bytes, metrics_dict: dict, model_name: str, training_iterations: int, bucket_out: str, model_output_blob_name: str):
+def train_model_if_necessary(
+    tasks: bytes,
+    metrics_dict: dict,
+    model_name: str,
+    training_iterations: int,
+    bucket_out: str,
+    model_output_blob_name: str,
+):
     """Checks for model accuracy. If it's high enough, the pipeline stops, else it trains a new model.
 
     Args:
@@ -200,16 +213,34 @@ def train_model_if_necessary(tasks: bytes, metrics_dict: dict, model_name: str, 
         return
     else:
         train_data = format_tasks_for_train(tasks=tasks)
-        nlp = load_model(lang="en", from_gcs=False, gcs_bucket="", gcs_source_blob_name="")
-        nlp = train_model(train_data=train_data, nlp=nlp, training_iterations=training_iterations, bucket_out=bucket_out, source_blob_name=model_output_blob_name)
+        nlp = load_model(
+            lang="en", from_gcs=False, gcs_bucket="", gcs_source_blob_name=""
+        )
+        nlp = train_model(
+            train_data=train_data,
+            nlp=nlp,
+            training_iterations=training_iterations,
+            bucket_out=bucket_out,
+            source_blob_name=model_output_blob_name,
+        )
 
 
 @workflow
 def main():
     config = load_config("train")
-    tasks = load_tasks(bucket_name=config["bucket_label_out_name"], source_blob_name=config["label_studio_output_blob_name"])
+    tasks = load_tasks(
+        bucket_name=config["bucket_label_out_name"],
+        source_blob_name=config["label_studio_output_blob_name"],
+    )
     metrics_dict = evaluate_ner(tasks=tasks)
-    nlp = train_model_if_necessary(tasks=tasks, metrics_dict=metrics_dict, training_iterations=config["training_iterations"], model_name=config["model_name"], bucket_out=config["bucket_name"], model_output_blob_name=config["model_output_blob_name"])
+    nlp = train_model_if_necessary(
+        tasks=tasks,
+        metrics_dict=metrics_dict,
+        training_iterations=config["training_iterations"],
+        model_name=config["model_name"],
+        bucket_out=config["bucket_name"],
+        model_output_blob_name=config["model_output_blob_name"],
+    )
     return nlp
 
 
