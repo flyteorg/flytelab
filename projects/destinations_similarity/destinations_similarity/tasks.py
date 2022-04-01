@@ -238,7 +238,7 @@ def build_mean_embedding(
 
     Args:
         list_dataframes (List[pd.DataFrame]): list of dataframes with 
-                                                city feature vectors
+            city feature vectors
 
     Returns:
         pd.DataFrame: city vectors
@@ -269,10 +269,10 @@ def get_k_nearest(
     """Retrieve the k-nearest neighbors.
 
     Args:
-        dataframe (pd.DataFrame): city vectors
-        kneighborhood (int): number os similar cities to present
+        embeddings (pd.DataFrame): city vectors
+        k_neighbors (int): number os similar cities to present
         city_name (str): last city visited
-        city_column (str): city column name
+        state_name (str): last state visited
 
     Returns:
         pd.DataFrame: the cities most similar to city_name
@@ -317,10 +317,10 @@ def build_output(
         city_name (str): last city visited
         state_name (str): last state visited
         nearest_cities (pd.DataFrame): the cities most similar to city_name
-        see_wikivoyage (pd.DataFrame): to see information column name 
-                                        from wikivoyage
-        do_wikivoyage (pd.DataFrame): to do information column name 
-                                        from wikivoyage
+        see_wikivoyage_column (pd.DataFrame): to see information column name 
+            from wikivoyage
+        do_wikivoyage_column (pd.DataFrame): to do information column name 
+            from wikivoyage
 
     Returns:
         dict: the cities most similar to city_name e those informations

@@ -57,9 +57,6 @@ def build_knowledge_base(
 ) -> pd.DataFrame:
     """Generate knowledge database.
 
-    Returns:
-        PythonPickledFile: The generated dataset.
-
     Args:
         columns_to_translate (List[str]): city features to be translated
         columns_to_process (List[str]): city features to be processed
@@ -111,10 +108,12 @@ def inference(
         dataframe (pd.DataFrame): remote dataframe with cities features
         dataframe_vectorized (pd.DataFrame): cities vector dataframe
         k_neighbors (int): number os similar cities to present
-        actual_city_name (str): last city visited
-        see_wikivoyage (pd.DataFrame): to see information from wikivoyage
-        do_wikivoyage (pd.DataFrame): to do information from wikivoyage
-        city_column (str): city column name
+        city_name (str): last city visited
+        state_name (str): last state visited
+        see_wikivoyage_column (pd.DataFrame): to see information 
+            from wikivoyage
+        do_wikivoyage_column (pd.DataFrame): to do information 
+            from wikivoyage
 
     Returns:
         dict: model suggestions with cities 
