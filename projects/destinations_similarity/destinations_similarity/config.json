@@ -1,8 +1,19 @@
 {
-    "columns_to_translate":["summary_wikipedia_pt", "história_wikipedia_pt",
-        "geografia_wikipedia_pt", "clima_wikipedia_pt"],
-    "columns_to_process": ["see_wikivoyage_en", "do_wikivoyage_en"],
-    "city_column_name":"city" ,
+    "columns_to_translate": [
+        "see_wikivoyage_en",
+        "do_wikivoyage_en",
+        "summary_wikivoyage_en"
+    ],
+    "columns_to_process": [
+        "summary_wikipedia_pt",
+        "história_wikipedia_pt",
+        "geografia_wikipedia_pt",
+        "clima_wikipedia_pt",
+        "see_wikivoyage_en",
+        "do_wikivoyage_en",
+        "summary_wikivoyage_en"
+    ],
+    "summary_wikivoyage_column_name": "summary_wikivoyage_en",
     "see_wikivoyage_column_name": "see_wikivoyage_en",
     "do_wikivoyage_column_name": "do_wikivoyage_en"
 }

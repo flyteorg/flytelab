@@ -2,25 +2,23 @@
 
 import sys
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
-import requests
-import pandas as pd
 import torch
-import numpy as np
 import faiss
-from flytekit import task, Resources
+import pandas as pd
+import numpy as np
 from unidecode import unidecode
-from deep_translator import GoogleTranslator
-
+from flytekit import task, Resources
+from flytekit.types.file import FlyteFile
 
 from destinations_similarity.scraper.extractor import WikiExtractor
 from destinations_similarity.scraper.brazilian_cities import (
-    get_brazilian_cities_data, get_dataframe
-)
-from destinations_similarity.preprocessing_data.text_processing import translate_description_series
-from destinations_similarity.preprocessing_data.text_processing import preprocess_text, translate_description
-from destinations_similarity.feature_engineering.text_feature_engineering import TextVectorizer
+    get_brazilian_cities_data, get_dataframe)
+from destinations_similarity.processing.text_preprocessing import (
+    translate_description_series, preprocess_text, translate_description)
+from destinations_similarity.processing.feature_engineering import (
+    TextVectorizer)
 
 
 # Logging config
@@ -33,7 +31,8 @@ logging.basicConfig(
 )
 
 # Flyte configuration
-BASE_RESOURCES = Resources(cpu="0.5", mem="500Mi")
+BASE_RESOURCES = Resources(cpu="0.5", mem="2Gi")
+INTENSIVE_RESOURCES = Resources(cpu="2", mem="16Gi")
 
 
 @task(retries=3, requests=BASE_RESOURCES)
@@ -128,111 +127,250 @@ def merge_dataframes(
     return pd.concat([df_x, df_y[df_y_columns]], axis=1, join=join)
 
 
+@task
+def check_if_remote(uri: str) -> Tuple[bool, FlyteFile]:
+    """Check if a URI points to a remote file."""
+    if uri:
+        return True, uri
+    return False, uri
+
+
 @task(retries=3, requests=BASE_RESOURCES)
-def retrieve_dataset_from_remote(url: str) -> pd.DataFrame:
-    """Retrieve the dataset from a remote URL.
+def retrieve_dataset_from_remote(uri: FlyteFile) -> pd.DataFrame:
+    """Retrieve a dataset from a remote URL.
 
     Args:
-        url (str): Remote address of the dataset, a Parquet file.
+        url (FlyteFile): Remote address of the dataset. Must be a Parquet file.
 
     Returns:
         pd.DataFrame: DataFrame with the dataset.
     """
-    dataset_parquet = requests.get(url, timeout=30)
-    dataset_df = pd.read_parquet(dataset_parquet)
-    LOGGER.info("Retrieved dataset from %s.", url)
+    # Download file if it has a remote source
+    if uri.remote_source is not None:
+        uri.download()
+
+    dataset_df = pd.read_parquet(uri.path)
+    dataset_df.columns = dataset_df.columns.astype(str)
+    LOGGER.info("Retrieved dataset from '%s'.", uri.remote_source or uri.path)
     return dataset_df
 
-@task(retries=3, requests=BASE_RESOURCES)
-def preprocess_input_data(dataframe:pd.DataFrame, columns_to_translate: List[str],
-                            columns_to_process:List[str]) -> pd.DataFrame:
-  for col in columns_to_process+columns_to_translate:
-      if col in columns_to_translate:
-          dataframe[col] = translate_description_series(dataframe,col)
-      else:
-          dataframe[col] = dataframe[col].fillna("").swifter.apply(lambda x: unidecode(x) if type(x)==str else x).str.lower()
-          dataframe[col] = preprocess_text(dataframe,col)
-  return dataframe
 
-@task(retries=3, requests=BASE_RESOURCES)
-def vectorize_columns(dataframe,columns_to_vec,city_column) -> List[pd.DataFrame]:
-  model = TextVectorizer()
-  col_emb=[]
-  for col in columns_to_vec:
-    inputs_ids = model.encode_inputs(dataframe[col])
-    embeddings = model.get_df_embedding(inputs_ids)
-    city_embeddings = pd.concat([dataframe[city_column],embeddings],axis=1)
-    col_emb.append(city_embeddings)
-  return col_emb
+@task(requests=INTENSIVE_RESOURCES)
+def preprocess_input_data(
+    dataframe: pd.DataFrame, columns_to_translate: List[str],
+    columns_to_process: List[str], wikivoyage_summary: str
+) -> pd.DataFrame:
+    """Preprocess the scraped data.
 
-@task(retries=3, requests=BASE_RESOURCES)
-def build_mean_embedding(list_dataframes:List[pd.DataFrame]) -> torch.tensor:
-  col_emb_=[data.iloc[:,1:].values for data in list_dataframes]
-  aux = torch.tensor(col_emb_)
-  aux_mean = aux.mean(axis=0)
-  aux_mean = pd.DataFrame(aux_mean).astype("float")
-  aux_mean['city'] = list_dataframes[0].iloc[:,0]
-  aux_mean = aux_mean.fillna(0)
-  return aux_mean
+    Args:
+        dataframe (pd.DataFrame): remote dataframe with cities features
+        columns_to_translate (List[str]): city features to be translated
+        columns_to_process (List[str]): city features to be processed
+        wikivoyage_summary (str): summary wikivoyage column name
 
-@task(retries=3, requests=BASE_RESOURCES)
-def get_k_most_near(dataframe, kneighborhood: int, vector_dim: int,
-                    city_name:str,city_column: str)->None:
-        """
-        Method responsable for getting the nearst city to a given hotel
-        Args:
-            knn (int): number of nea hotels
-            dim (int): embedding dimension
-            city_name (str): city name of hotels
-        """
-        vec = dataframe[dataframe[city_column]!=city_name].iloc[:,:vector_dim]
-        vec_name = dataframe[dataframe[city_column]!=city_name]
-        index = faiss.IndexFlatL2(vector_dim)
-        index.add(np.ascontiguousarray(np.float32(vec.values)))
-        
-        query = dataframe[dataframe[city_column]==city_name].iloc[:,:vector_dim].values
+    Returns:
+        pd.DataFrame: remote dataframe pre-processed
+    """
+    LOGGER.info("Preprocessing input data.")
 
-        query = np.float32(query)
-        
-        D, I = index.search(query, kneighborhood)
-      
-        most_near = vec_name[city_column].iloc[I[0]]
-        
-        return most_near
+    if wikivoyage_summary:
+        dataframe = dataframe[
+            dataframe[wikivoyage_summary].notna()
+        ].copy().reset_index(drop=True)
+        LOGGER.info("Using %s rows of data.", dataframe.shape[0])
 
-@task(retries=3, requests=BASE_RESOURCES)
-def build_output(dataframe,nearst_city,see_wikivoyage,
-                    do_wikivoyage,city_column,kneighborhood,
-                    actual_city_name) -> dict:
+    # Translate columns
+    for col in columns_to_translate:
+        dataframe[col] = translate_description_series(dataframe, col)
 
-    pois_target = dataframe[dataframe[city_column]==actual_city_name][[see_wikivoyage, do_wikivoyage]]
+    LOGGER.info("Columns %s translated.", columns_to_translate)
+
+    # Process specified columns
+    for col in columns_to_process:
+        dataframe[col] = dataframe[col].fillna("").swifter.apply(
+            lambda x: unidecode(x) if isinstance(x, str) else x).str.lower()
+        dataframe[col] = preprocess_text(dataframe, col)
+
+    LOGGER.info("Columns %s processed.", columns_to_process)
+    dataframe.columns = dataframe.columns.astype(str)
+    return dataframe
+
+
+@task(requests=INTENSIVE_RESOURCES)
+def vectorize_columns(
+    dataframe: pd.DataFrame, columns_to_vec: List[str],
+    city_column: str, state_column: str
+) -> List[pd.DataFrame]:
+    """Generate embeddings with the cities' infos.
+
+    Args:
+        dataframe (pd.DataFrame): remote dataset pre-processed
+        columns_to_vec (List[str]): city features to be vectorized
+        city_column (str): city column name
+        state_column (str): state column name
+
+    Returns:
+        List[pd.DataFrame]: list of dataframes with city feature vectors
+    """
+    model = TextVectorizer()
+    column_embeddings = []
+
+    LOGGER.info("Generating embeddings for columns.")
+
+    # Generate embeddings for each column
+    for col in columns_to_vec:
+        inputs_ids = model.encode_inputs(dataframe[col])
+        embeddings = model.get_df_embedding(inputs_ids)
+        city_embeddings = pd.concat(
+            [dataframe[[city_column, state_column]], embeddings], axis=1)
+        city_embeddings.columns = city_embeddings.columns.astype(str)
+        column_embeddings.append(city_embeddings)
+
+    LOGGER.info("Embeddings generated.")
+    return column_embeddings
+
+
+@task(requests=INTENSIVE_RESOURCES)
+def build_mean_embedding(
+    list_dataframes: List[pd.DataFrame]
+) -> pd.DataFrame:
+    """Build mean embeddings for cities.
+
+    Args:
+        list_dataframes (List[pd.DataFrame]): list of dataframes with 
+            city feature vectors
+
+    Returns:
+        pd.DataFrame: city vectors
+    """
+    LOGGER.info("Building mean embeddings.")
+
+    # Retrieve embeddings
+    column_embeddings = [data.iloc[:, 2:].values for data in list_dataframes]
+
+    # Compute mean embeddings
+    aux = torch.Tensor(np.array(column_embeddings))
+    aux_mean = aux.mean(axis=0)
+    aux_mean = pd.DataFrame(aux_mean).astype("float")
+    aux_mean = aux_mean.fillna(0)
+    aux_mean = pd.concat(
+        [list_dataframes[0][['city', 'state']], aux_mean], axis=1)
+    aux_mean.columns = aux_mean.columns.astype(str)
+
+    LOGGER.info("Mean embeddings calculated.")
+    return aux_mean
+
+
+@task(requests=BASE_RESOURCES)
+def get_k_nearest(
+    embeddings: pd.DataFrame, k_neighbors: int,
+    city_name: str, state_name: str
+) -> pd.DataFrame:
+    """Retrieve the k-nearest neighbors.
+
+    Args:
+        embeddings (pd.DataFrame): city vectors
+        k_neighbors (int): number os similar cities to present
+        city_name (str): last city visited
+        state_name (str): last state visited
+
+    Returns:
+        pd.DataFrame: the cities most similar to city_name
+    """
+    # Retrieve vectors to search
+    vec_name = embeddings[~(
+        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
+    )].reset_index(drop=True)
+    vec = vec_name.drop(['city', 'state'], axis=1)
+
+    # Initialize faiss
+    index = faiss.IndexFlatL2(vec.shape[1])
+    index.add(  # pylint: disable=no-value-for-parameter
+        np.ascontiguousarray(np.float32(vec.values))
+    )
+
+    # Build query
+    query = embeddings[(
+        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
+    )].drop(['city', 'state'], axis=1).values
+    query = np.float32(query)
+
+    # Retrieve k-nearest neighbors
+    _, indexes = index.search(  # pylint: disable=no-value-for-parameter
+        query, k_neighbors
+    )
+    nearest = vec_name[['city', 'state']].iloc[indexes[0]]
+
+    return nearest
+
+
+@task(requests=BASE_RESOURCES)
+def build_output(
+    dataframe: pd.DataFrame, city_name: str, state_name: str,
+    nearest_cities: pd.DataFrame, see_wikivoyage_column: str,
+    do_wikivoyage_column: str
+) -> dict:
+    """Build the output of the data.
     
-    if len(pois_target)>0:
-        to_see_actual = translate_description(pois_target[see_wikivoyage].iloc[0],'en')
-        to_do_actual = translate_description(pois_target[do_wikivoyage].iloc[0],'en')
-    else:
-        to_see_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
-        to_do_actual = "\nOops..unfortunately we don't have the record of what Kin did in this city :/\n"
-    
-    
-    to_see_nearst = []
-    to_do_nearst = []
-    for cits in range(kneighborhood):
-        pois_suggestion = dataframe[dataframe[city_column]==nearst_city.iloc[cits]][[see_wikivoyage, do_wikivoyage]]
-        if len(pois_suggestion)>0:
-            to_see_nearst.append(translate_description(pois_suggestion[see_wikivoyage].iloc[0],'en'))
-            to_do_nearst.append(translate_description(pois_suggestion[do_wikivoyage].iloc[0],'en'))
-        else:
-            to_see_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
-            to_do_nearst.append("\nOops..unfortunately we don't have information about this city :/\n")
+    Args:
+        dataframe (pd.DataFrame): remote dataframe with cities features
+        city_name (str): last city visited
+        state_name (str): last state visited
+        nearest_cities (pd.DataFrame): the cities most similar to city_name
+        see_wikivoyage_column (pd.DataFrame): to see information column name 
+            from wikivoyage
+        do_wikivoyage_column (pd.DataFrame): to do information column name 
+            from wikivoyage
+
+    Returns:
+        dict: the cities most similar to city_name e those informations
+    """
+    # Retrieve 'See' and 'Do' from actual city
+    pois_target = dataframe[
+        (dataframe['city'] == city_name) & (dataframe['state'] == state_name)
+    ][[see_wikivoyage_column, do_wikivoyage_column]]
+
+    # Build output
+    to_see_actual = (
+        translate_description(pois_target[see_wikivoyage_column].iloc[0], 'en')
+        or "\nOops... Unfortunately we don't have the record of what Kin did "
+           "in this city :/\n"
+    )
+    to_do_actual = (
+        translate_description(pois_target[do_wikivoyage_column].iloc[0], 'en')
+        or "\nOops... Unfortunately we don't have the record of what Kin did "
+           "in this city :/\n"
+    )
+
+    # Retrieve 'See' and 'Do' for similar cities
+    to_see_nearest = []
+    to_do_nearest = []
+
+    for _, row in nearest_cities.iterrows():
+        pois_suggestion = dataframe[
+            (dataframe['city'] == row.city) & (dataframe['state'] == row.state)
+        ][[see_wikivoyage_column, do_wikivoyage_column]]
+
+        to_see_nearest.append(
+            translate_description(
+                pois_suggestion[see_wikivoyage_column].iloc[0], 'en')
+            or "\nOops... Unfortunately we don't have the record of what Kin "
+               "did in this city :/\n"
+        )
+        to_do_nearest.append(
+            translate_description(
+                pois_suggestion[do_wikivoyage_column].iloc[0], 'en')
+            or "\nOops... Unfortunately we don't have the record of what Kin "
+               "did in this city :/\n"
+        )
 
     output = {
-        "actual_city": actual_city_name,
-        "actual_city_to_see":to_see_actual,
-        "actual_city_to_do":to_do_actual,
-        "nearst_city":list(nearst_city),
-        "nearst_to_see":to_see_nearst,
-        "nearst_to_see":to_do_nearst
+        "actual_city": [city_name, state_name],
+        "actual_city_to_see": to_see_actual,
+        "actual_city_to_do": to_do_actual,
+        "nearest_cities": list(nearest_cities.values.tolist()),
+        "nearest_to_see": to_see_nearest,
+        "nearest_to_do": to_do_nearest
     }
 
-    return output 
+    return output
