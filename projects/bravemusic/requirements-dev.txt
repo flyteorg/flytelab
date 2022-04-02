@@ -1,4 +1,5 @@
 docker
-gitpython
+GitPython
 streamlit
 typer
+click

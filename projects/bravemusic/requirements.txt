@@ -1,4 +1,10 @@
+dataclasses_json
 flytekit>=0.30.3
 pandas
 s3fs
 sklearn
+librosa
+tensorflow
+numpy==1.20
+joblib
+urllib3
