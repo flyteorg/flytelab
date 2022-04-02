@@ -1,5 +1,4 @@
 import typing
-from collections import OrderedDict
 from dataclasses import dataclass
 import numpy as np
 from flytekit.types.directory import FlyteDirectory
@@ -7,8 +6,8 @@ import pandas as pd
 from dataclasses_json import dataclass_json
 from flytekit import Resources, task, workflow
 from flytekit.types.file import FlyteFile
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 import tensorflow.keras as keras
 from typing import NamedTuple, Tuple
 import flytekit
@@ -19,7 +18,7 @@ import librosa
 import warnings
 warnings.filterwarnings("ignore")
 import os
-import urllib.request
+import urllib
 import tarfile
 
 
@@ -163,7 +162,7 @@ def flyteworkflow(
 
 
 if __name__ == "__main__":
-    #print(f"Running {__file__} main...")
+    print(f"Running {__file__} main...")
     print(flyteworkflow())
 
 

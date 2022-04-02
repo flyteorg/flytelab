@@ -1,10 +1,10 @@
-dataclasses_json
-flytekit>=0.30.3
-pandas
+dataclasses_json==0.5.7
+flytekit>=0.30.0
 s3fs
-sklearn
 librosa
-tensorflow
 numpy==1.20
+pandas
+requests
+sklearn
+tensorflow
 joblib
-urllib3
