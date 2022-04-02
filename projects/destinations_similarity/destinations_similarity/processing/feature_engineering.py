@@ -48,5 +48,5 @@ class TextVectorizer():
         with torch.no_grad():
             outs = self.model(
                 input_ids['input_ids']
-            )[0][:, 1:-1, :].mean(axis=1).numpy()
+            )[0][:, 1:-1, :].mean(axis=1).cpu().numpy()
         return pd.DataFrame(outs)

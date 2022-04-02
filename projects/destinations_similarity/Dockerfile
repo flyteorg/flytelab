@@ -5,7 +5,7 @@
 ARG image
 ARG config
 
-FROM python:3.9-slim-buster
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
 
 # Defining environment variables
 ENV APPUSER="flyte"

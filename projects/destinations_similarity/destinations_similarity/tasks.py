@@ -30,11 +30,12 @@ logging.basicConfig(
 )
 
 # Flyte configuration
-BASE_RESOURCES = Resources(cpu="0.5", mem="500Mi")
-INTENSIVE_RESOURCES = Resources(cpu="1", mem="1Gi", gpu="1")
+LIGHT_RESOURCES = Resources(cpu="0.5", mem="1Gi")
+BASE_RESOURCES = Resources(cpu="1", mem="2Gi")
+INTENSIVE_RESOURCES = Resources(cpu="2", mem="16Gi")
 
 
-@task(retries=3, requests=BASE_RESOURCES)
+@task(retries=3, requests=LIGHT_RESOURCES)
 def get_base_data(generate_city_id: bool) -> pd.DataFrame:
     """Retrieve base data for the dataset.
 
@@ -49,7 +50,7 @@ def get_base_data(generate_city_id: bool) -> pd.DataFrame:
         get_dataframe, generate_city_id=generate_city_id)
 
 
-@task(retries=3, requests=BASE_RESOURCES)
+@task(retries=3, requests=LIGHT_RESOURCES)
 def scrap_wiki(
     base_data: pd.DataFrame, wiki: str, lang: str, summary: bool,
     sections: List[str], sections_tags: Dict[str, List[str]],
@@ -108,7 +109,7 @@ def scrap_wiki(
     return dataset
 
 
-@task(cache=True, cache_version='1.0', requests=BASE_RESOURCES)
+@task(cache=True, cache_version='1.0', requests=LIGHT_RESOURCES)
 def merge_dataframes(
     df_x: pd.DataFrame, df_y: pd.DataFrame, join: str
 ) -> pd.DataFrame:
@@ -134,7 +135,7 @@ def check_if_remote(uri: str) -> Tuple[bool, FlyteFile]:
     return False, uri
 
 
-@task(retries=3, requests=BASE_RESOURCES)
+@task(retries=3, requests=LIGHT_RESOURCES)
 def retrieve_dataset_from_remote(uri: FlyteFile) -> pd.DataFrame:
     """Retrieve a dataset from a remote URL.
 
@@ -154,7 +155,7 @@ def retrieve_dataset_from_remote(uri: FlyteFile) -> pd.DataFrame:
     return dataset_df
 
 
-@task(cache=True, cache_version='1.0', requests=INTENSIVE_RESOURCES)
+@task(cache=True, cache_version='1.0', requests=BASE_RESOURCES)
 def preprocess_input_data(
     dataframe: pd.DataFrame, columns_to_translate: List[str],
     columns_to_process: List[str], wikivoyage_summary: str
@@ -212,13 +213,14 @@ def vectorize_columns(
         List[pd.DataFrame]: list of dataframes with city feature vectors
     """
     model = TextVectorizer()
+    model.model.to('cuda')
     column_embeddings = []
 
     LOGGER.info("Generating embeddings for columns.")
 
     # Generate embeddings for each column
     for col in columns_to_vec:
-        inputs_ids = model.encode_inputs(dataframe[col])
+        inputs_ids = model.encode_inputs(dataframe[col]).to('cuda')
         embeddings = model.get_df_embedding(inputs_ids)
         city_embeddings = pd.concat(
             [dataframe[[city_column, state_column]], embeddings], axis=1)
