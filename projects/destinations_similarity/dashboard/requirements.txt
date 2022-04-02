@@ -4,3 +4,4 @@ requests~=2.27.1
 faiss-cpu~=1.7.2
 numpy>=1.21.5
 deep-translator~=1.8.3
+streamlit
