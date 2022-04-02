@@ -39,7 +39,11 @@ The flow of workflows implemented in flyte are shown below:
 
 **Similarity**: To calculate the similarity between the vector representations of each city, we are using an high optimized library and calculate the Euclidean distance between an input vector query (vector of the last city visited by Kinzinho) and all vectors of the cities available in our portfolio.
 
+
 ### Streamlit interface
+
+> ###### WARNING
+> It is important to note that our APP on Streamlit does not have all the cities available in the original database for design decision reasons. The original base has about 5 thousand cities while the base used in the APP will only present 400 cities. However, with some adjustments and a properly developed environment, it is possible to extend this analysis to all other cities.
 
 The user interaction interface was built using the streamlit tool. After local testing, the stable version of the tool was posted on Streamlit's public server. You can access the interface through the link below.
 
