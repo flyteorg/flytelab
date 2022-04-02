@@ -36,7 +36,7 @@ def retrieve_dataframe_from_remote(dataset_name: str) -> pd.DataFrame:
 
 
 def get_k_nearest_neighbors(
-        embeddings: pd.DataFrame, k_neighbors: int, city_name: str, state_name: str
+    embeddings: pd.DataFrame, k_neighbors: int, city_name: str, state_name: str
 ) -> pd.DataFrame:
     """Retrieve the k-nearest neighbors of a city.
 
@@ -50,7 +50,7 @@ def get_k_nearest_neighbors(
     """
     # Retrieve vectors to search
     vec_name = embeddings[~(
-            (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
+        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
     )].reset_index(drop=True)
     vec = vec_name.drop(['city', 'state'], axis=1)
 
@@ -60,7 +60,7 @@ def get_k_nearest_neighbors(
 
     # Build query
     query = embeddings[(
-            (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
+        (embeddings['city'] == city_name) & (embeddings['state'] == state_name)
     )].drop(['city', 'state'], axis=1).values
     query = np.float32(query)
 
@@ -96,13 +96,14 @@ def build_output(
 
         pois_suggestion = dataset[
             (dataset['city'] == row.city) & (dataset['state'] == row.state)
-            ][columns_to_retrieve].iloc[0]
+        ][columns_to_retrieve].iloc[0]
 
         for column in columns_to_retrieve:
             section = ' '.join(column.split('_')[:-2]).capitalize()
             output += (
                 f"\n### {section}"
-                f"\n{pois_suggestion[column] or default_desc}")
+                f"\n{pois_suggestion[column] or default_desc}"
+            )
 
     return output
 
@@ -129,7 +130,8 @@ if __name__ == '__main__':
         "## So he is now asking, **where should I go next**?"
     )
 
-    beach_kinder = Image.open(os.path.join(CURRENT_DIRECTORY, 'beach_kinder.jpeg'))
+    beach_kinder = Image.open(
+        os.path.join(CURRENT_DIRECTORY, 'beach_kinder.jpeg'))
     st.image(beach_kinder, caption='Kinder in love with the beach')
 
     st.write(
