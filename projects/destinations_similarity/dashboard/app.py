@@ -14,11 +14,11 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 
-
 GCS_BUCKET_PATH = "https://storage.googleapis.com/dsc-public-info/datasets/"
 EMBEDDINGS_FILENAME = "flytelab_embeddings.parquet"
 DATASET_FILENAME = "flytelab_dataset.parquet"
 
+CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 # Logging config
 LOGGER = logging.getLogger(__name__)
@@ -72,8 +72,8 @@ def get_k_nearest_neighbors(
 
 
 def build_output(
-    dataset: pd.DataFrame, nearest_cities: pd.DataFrame,
-    columns_to_retrieve: List[str]
+        dataset: pd.DataFrame, nearest_cities: pd.DataFrame,
+        columns_to_retrieve: List[str]
 ) -> pd.DataFrame:
     """Build the output text of inference.
 
@@ -102,7 +102,8 @@ def build_output(
             section = ' '.join(column.split('_')[:-2]).capitalize()
             output += (
                 f"\n### {section}"
-                f"\n{pois_suggestion[column] or default_desc}")
+                f"\n{pois_suggestion[column] or default_desc}"
+            )
 
     return output
 
@@ -129,7 +130,8 @@ if __name__ == '__main__':
         "## So he is now asking, **where should I go next**?"
     )
 
-    beach_kinder = Image.open('beach_kinder.jpeg')
+    beach_kinder = Image.open(
+        os.path.join(CURRENT_DIRECTORY, 'beach_kinder.jpeg'))
     st.image(beach_kinder, caption='Kinder in love with the beach')
 
     st.write(
@@ -163,7 +165,7 @@ if __name__ == '__main__':
         ]
     ))
 
-    kinder = Image.open('kinder.jpeg')
+    kinder = Image.open(os.path.join(CURRENT_DIRECTORY, 'kinder.jpeg'))
     st.image(kinder, caption='The marvelous Kinder')
 
     st.write(
