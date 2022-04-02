@@ -8,3 +8,11 @@ requests
 sklearn
 tensorflow
 joblib
+docker
+GitPython
+streamlit
+typer
+click
+streamlit_option_menu
+pydub
+itsdangerous
