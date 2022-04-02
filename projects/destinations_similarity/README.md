@@ -44,6 +44,10 @@ The flow of workflows implemented in flyte are shown below:
 The user interaction interface was built using the streamlit tool. After local testing, the stable version of the tool was posted on Streamlit's public server. You can access the interface through the link below.
 
 
+Click on the video screen below to see the video of the demo version of the APP:
+
+[![Watch the video](https://i.imgur.com/vKb2F1B.png)](https://youtu.be/C8ubD2z19Xk)
+
 ### Sphinx docs
 
 > ###### WARNING
