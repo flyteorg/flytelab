@@ -6,11 +6,11 @@ import pandas as pd
 from dataclasses_json import dataclass_json
 from flytekit import Resources, task, workflow
 from flytekit.types.file import FlyteFile
-from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 import tensorflow.keras as keras
 from typing import NamedTuple, Tuple
 import flytekit
+import joblib
 import os
 import json
 import math

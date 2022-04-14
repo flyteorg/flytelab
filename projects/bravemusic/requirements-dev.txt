@@ -2,7 +2,7 @@ docker
 GitPython
 streamlit
 typer
-click
+click==8.0.4
 streamlit_option_menu
 pydub
 itsdangerous
