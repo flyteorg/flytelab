@@ -161,7 +161,7 @@ def register(version: str, remote: bool, fast: bool, domain: str):
 
 
 @app.command()
-def main(remote: bool = False, fast: bool = False, domain: str = "development", registry: str = None):
+def main(remote: bool = False, fast: bool = False, domain: str = "staging", registry: str = None):
     if remote and fast:
         typer.echo(
             "Fast registration is not enabled when deploying to remote. "
