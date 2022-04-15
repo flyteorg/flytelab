@@ -13,6 +13,7 @@ from spacy.util import compounding, minibatch
 from whats_cooking_good_looking.utils import (download_bytes_from_gcs,
                                               download_from_gcs, load_config,
                                               upload_to_gcs)
+from whats_cooking_good_looking.apply_ner_workflow import load_model
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -43,7 +44,7 @@ def evaluate_ner(labelstudio_tasks: bytes) -> dict:
                             "predictions": [
                                     {
                                     "result": {"start": 10, "end": 17, "text": "Chennai", "labels": ["LOC"]},
-                                    "model_version": "dummy",
+                                    "model_version": "en_core_web_sm",
                                     }
                                 ],
                             }
@@ -58,8 +59,7 @@ def evaluate_ner(labelstudio_tasks: bytes) -> dict:
     for ls_task in json.loads(labelstudio_tasks):
         annotation_result = ls_task["result"][0]["value"]
         for key in annotation_result:
-            if key == "id":
-                annotation_result.pop("id")
+            annotation_result.pop("id", None)
         for prediction in ls_task["predictions"]:
             model_version = prediction["model_version"]
             model_hits[model_version] += int(prediction["result"] == annotation_result)
@@ -111,34 +111,34 @@ def format_tasks_for_train(labelstudio_tasks: bytes) -> str:
     return json.dumps(train_data)
 
 
-@task
-def load_model(
-    lang: str,
-    from_gcs: bool,
-    gcs_bucket: str,
-    gcs_source_blob_name: str,
-) -> bytes:
-    """Loads spacy model either from gcs if specified or given the source language.
-
-    Args:
-        lang (str): Language in which tweets must be written(iso-code).
-        from_gcs (bool): True if needs to download custom spacy model from gcs.
-        gcs_bucket (str): bucket name where to retrieve spacy model if from_gcs.
-        gcs_source_blob_name (str, optional): blob name where to retrieve spacy model if from_gcs.
-
-    Returns:
-        Language: spacy model
-    """
-    if from_gcs:
-        Path("tmp").mkdir(parents=True, exist_ok=True)
-        output_filename = download_from_gcs(
-            gcs_bucket, gcs_source_blob_name, "tmp", explicit_filepath=True
-        )[0]
-        nlp = spacy.load(output_filename)
-    else:
-        model_name = SPACY_MODEL[lang]
-    nlp = spacy.load(model_name)
-    return nlp
+#@task
+#def load_model(
+#    lang: str,
+#    from_gcs: bool,
+#    gcs_bucket: str,
+#    gcs_source_blob_name: str,
+#) -> bytes:
+#    """Loads spacy model either from gcs if specified or given the source language.
+#
+#    Args:
+#        lang (str): Language in which tweets must be written(iso-code).
+#        from_gcs (bool): True if needs to download custom spacy model from gcs.
+#        gcs_bucket (str): bucket name where to retrieve spacy model if from_gcs.
+#        gcs_source_blob_name (str): blob name where to retrieve spacy model if from_gcs.
+#
+#    Returns:
+#        Language: spacy model
+#    """
+#    if from_gcs:
+#        Path("tmp").mkdir(parents=True, exist_ok=True)
+#        output_filename = download_from_gcs(
+#            gcs_bucket, gcs_source_blob_name, "tmp", explicit_filepath=True
+#        )[0]
+#        nlp = spacy.load(output_filename)
+#    else:
+#        model_name = SPACY_MODEL[lang]
+#    nlp = spacy.load(model_name)
+#    return nlp
 
 
 @task
