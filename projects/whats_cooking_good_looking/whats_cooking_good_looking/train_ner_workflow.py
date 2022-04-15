@@ -2,18 +2,15 @@ import json
 import pickle
 import random
 from collections import defaultdict
-from pathlib import Path
 
 import spacy
 from flytekit import Resources, dynamic, task, workflow
 from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
-
-from whats_cooking_good_looking.utils import (download_bytes_from_gcs,
-                                              download_from_gcs, load_config,
-                                              upload_to_gcs)
 from whats_cooking_good_looking.apply_ner_workflow import load_model
+from whats_cooking_good_looking.utils import (download_bytes_from_gcs,
+                                              load_config, upload_to_gcs)
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
