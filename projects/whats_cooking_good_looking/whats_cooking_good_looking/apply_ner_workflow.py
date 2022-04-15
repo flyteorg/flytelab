@@ -61,17 +61,17 @@ def load_model(
     from_gcs: bool,
     gcs_bucket: str,
     gcs_source_blob_name: str,
-) -> bytes:
+) -> spacy.Language:
     """Loads spacy model either from gcs if specified or given the source language.
 
     Args:
         lang (str): Language in which tweets must be written(iso-code).
         from_gcs (bool): True if needs to download custom spacy model from gcs.
         gcs_bucket (str): bucket name where to retrieve spacy model if from_gcs.
-        gcs_source_blob_name (str, optional): blob name where to retrieve spacy model if from_gcs.
+        gcs_source_blob_name (str): blob name where to retrieve spacy model if from_gcs.
 
     Returns:
-        Language: spacy model
+        Language: spacy model.
     """
     if from_gcs:
         Path("tmp").mkdir(parents=True, exist_ok=True)
@@ -81,7 +81,7 @@ def load_model(
         nlp = spacy.load(output_filename)
     else:
         model_name = SPACY_MODEL[lang]
-    nlp = spacy.load(model_name)
+        nlp = spacy.load(model_name)
     return nlp
 
 
@@ -95,6 +95,8 @@ def apply_model(
     Args:
         nlp (Language): Spacy model to use for inference.
         tweets_list (str): json dumped list of tweets.
+        bucket_name (str): Name of the GCS bucket to upload to.
+        source_blob_name (str): File name of GCS uploaded file.
 
     Returns:
         str: json dumped results with following shape

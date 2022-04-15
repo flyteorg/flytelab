@@ -2,7 +2,6 @@ import json
 import pickle
 import random
 from collections import defaultdict
-from pathlib import Path
 
 import spacy
 from flytekit import Resources, dynamic, task, workflow
@@ -10,9 +9,9 @@ from spacy.language import Language
 from spacy.training import Example
 from spacy.util import compounding, minibatch
 
+from whats_cooking_good_looking.apply_ner_workflow import load_model
 from whats_cooking_good_looking.utils import (download_bytes_from_gcs,
-                                              download_from_gcs, load_config,
-                                              upload_to_gcs)
+                                              load_config, upload_to_gcs)
 
 SPACY_MODEL = {"en": "en_core_web_sm"}
 
@@ -43,7 +42,7 @@ def evaluate_ner(labelstudio_tasks: bytes) -> dict:
                             "predictions": [
                                     {
                                     "result": {"start": 10, "end": 17, "text": "Chennai", "labels": ["LOC"]},
-                                    "model_version": "dummy",
+                                    "model_version": "en_core_web_sm",
                                     }
                                 ],
                             }
@@ -58,8 +57,7 @@ def evaluate_ner(labelstudio_tasks: bytes) -> dict:
     for ls_task in json.loads(labelstudio_tasks):
         annotation_result = ls_task["result"][0]["value"]
         for key in annotation_result:
-            if key == "id":
-                annotation_result.pop("id")
+            annotation_result.pop("id", None)
         for prediction in ls_task["predictions"]:
             model_version = prediction["model_version"]
             model_hits[model_version] += int(prediction["result"] == annotation_result)
@@ -112,36 +110,6 @@ def format_tasks_for_train(labelstudio_tasks: bytes) -> str:
 
 
 @task
-def load_model(
-    lang: str,
-    from_gcs: bool,
-    gcs_bucket: str,
-    gcs_source_blob_name: str,
-) -> bytes:
-    """Loads spacy model either from gcs if specified or given the source language.
-
-    Args:
-        lang (str): Language in which tweets must be written(iso-code).
-        from_gcs (bool): True if needs to download custom spacy model from gcs.
-        gcs_bucket (str): bucket name where to retrieve spacy model if from_gcs.
-        gcs_source_blob_name (str, optional): blob name where to retrieve spacy model if from_gcs.
-
-    Returns:
-        Language: spacy model
-    """
-    if from_gcs:
-        Path("tmp").mkdir(parents=True, exist_ok=True)
-        output_filename = download_from_gcs(
-            gcs_bucket, gcs_source_blob_name, "tmp", explicit_filepath=True
-        )[0]
-        nlp = spacy.load(output_filename)
-    else:
-        model_name = SPACY_MODEL[lang]
-    nlp = spacy.load(model_name)
-    return nlp
-
-
-@task
 def train_model(
     train_data: str,
     nlp: Language,
@@ -187,6 +155,7 @@ def train_model(
                     print("Losses", losses)
     print("Model training completed !")
     upload_to_gcs(bucket_out, source_blob_name, pickle.dumps(nlp))
+    print("Model upload on GCS completed !")
     return nlp
 
 
@@ -203,7 +172,8 @@ def train_model_if_necessary(
     bucket_out: str,
     model_output_blob_name: str,
 ):
-    """Checks for model accuracy. If it's high enough, the pipeline stops, else it trains a new model.
+    """Checks for model accuracy. If it's high enough, the pipeline stops, else it trains a new model \
+        and upload it to GCS.
 
     Args:
         labelstudio_tasks (bytes): Label studio annotations
@@ -212,10 +182,7 @@ def train_model_if_necessary(
         training_iterations (int): number of training iterations for the spacy NER model
     """
     if metrics_dict[model_name] >= THRESHOLD_ACCURACY:
-        print(
-            f"No need to train. Accuracy of {metrics_dict[model_name]} is above threshold {THRESHOLD_ACCURACY}"
-        )
-        return
+        print(f"No need to train. Accuracy of {metrics_dict[model_name]} is above threshold {THRESHOLD_ACCURACY}")
     else:
         train_data = format_tasks_for_train(labelstudio_tasks=labelstudio_tasks)
         nlp = load_model(
@@ -246,7 +213,7 @@ def main():
         source_blob_name=config["label_studio_output_blob_name"],
     )
     metrics_dict = evaluate_ner(labelstudio_tasks=labelstudio_tasks)
-    nlp = train_model_if_necessary(
+    train_model_if_necessary(
         labelstudio_tasks=labelstudio_tasks,
         metrics_dict=metrics_dict,
         training_iterations=config["training_iterations"],
@@ -254,8 +221,7 @@ def main():
         bucket_out=config["bucket_name"],
         model_output_blob_name=config["model_output_blob_name"],
     )
-    return nlp
 
 
 if __name__ == "__main__":
-    print(f"Trained model: {main()}")
+    main()

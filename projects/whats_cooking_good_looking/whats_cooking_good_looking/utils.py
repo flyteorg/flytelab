@@ -2,7 +2,7 @@ import json
 import os
 from itertools import groupby
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 from google.cloud import storage
 
@@ -71,13 +71,15 @@ def download_from_gcs(
     source_blob_name: str,
     destination_folder: str,
     explicit_filepath: bool = False,
-) -> str:
+) -> Union[str, List[str]]:
     """Download gcs data locally.
 
     Args:
         bucket_name (str): Name of the GCS bucket.
         source_blob_name (str): GCS path to data in the bucket.
         destination_folder (str): Folder to download GCS data to.
+        explicit_filepath (bool, optional): Decides whether to return explicit list of filepath instead \
+            of destination folder only. Default to False.
 
     Returns:
         str: Local destination folder
