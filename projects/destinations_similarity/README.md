@@ -34,7 +34,7 @@ The system's workflow was implemented in Flyte and is shown below:
 
 **Model**: To generate the best vector representation of each city's features, we used a pre-trained state-of-the-art model based on Transformers (BERTimbau). As a vector representation of each feature of the city, we use the output of the last layer of the BERTimbau language model. The vector representation of each city is generated from the average of the vectors of its features.
 
-**Similarity**: To calculate the similarity between the vector representations of each city, we use an highly optimized library and calculate the Euclidean distance between an input vector query (vector of the last city visited by Kinzinho) and all the other vectors of the cities available in our portfolio.
+**Similarity**: To calculate the similarity between the vector representations of each city, we use [Faiss](https://github.com/facebookresearch/faiss), an highly optimized similarity search library, to calculate the Euclidean distance between an input vector query (vector of the last city visited by Kinzinho) and all the other vectors of the cities available in our portfolio.
 
 
 ### Streamlit interface
