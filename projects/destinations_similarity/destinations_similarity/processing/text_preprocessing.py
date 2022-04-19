@@ -66,18 +66,22 @@ def clean_text(texts: str) -> str:
     return text
 
 
-def remove_stopwords(list_tokens: List[str],
-                     stopword: List[str] = stopwords) -> str:
+def remove_stopwords(
+    list_tokens: List[str],
+    stopword_list: List[str] = stopwords.words('portuguese')
+) -> str:
     """Remove stopwords of the text.
 
     Args:
         list_tokens (List[str]): list of sentence tokens
+        stopword_list (List[str], optional): list of stopwords. Defaults to
+            nltk's portuguese stopwords.
 
     Returns:
         List[str]: text without stopwords
     """
     stopword = (
-        stopword.words('portuguese') +
+        stopword_list +
         list(punctuation) +
         ["\n", 'municipio', 'clima']
     )
