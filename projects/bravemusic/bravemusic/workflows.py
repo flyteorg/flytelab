@@ -21,9 +21,6 @@ import os
 import urllib
 import tarfile
 
-
-
-
 data = {
     "mapping": [],
     "labels": [],
@@ -34,7 +31,6 @@ SAMPLE_RATE = 22050
 TRACK_DURATION = 30 # measured in seconds
 SAMPLES_PER_TRACK = SAMPLE_RATE * TRACK_DURATION
 
-
 @task(cache_version="1.0", cache=True, limits=Resources(mem="200Mi"))
 def preprocess(
     dataset_path: str, json_path: str, num_mfcc: int, n_fft: int, hop_length: int, num_segments: int
@@ -43,8 +39,7 @@ def preprocess(
     #Downloading data from web
     testfile = urllib.request.URLopener()
     testfile.retrieve("http://opihi.cs.uvic.ca/sound/genres.tar.gz", "genres.tar.gz")
-
-    
+   
     #open file
     file = tarfile.open("genres.tar.gz")
     file.extractall(".../data")
@@ -89,7 +84,6 @@ def preprocess(
     with open(json_path, "w") as fp:
         json.dump(data, fp, indent=4)
 
-
 MODELSAVE = [typing.TypeVar("str")]
 model_file = typing.NamedTuple("Model", model=FlyteDirectory[MODELSAVE])
 workflow_outputs = typing.NamedTuple(
@@ -103,8 +97,6 @@ class Hyperparameters(object):
     loss='sparse_categorical_crossentropy',
     epochs: int = 30
     learning_rate: float = 0.0001
-
-
 
 @task(cache_version="1.0", cache=True, limits=Resources(mem="200Mi"))
 def train(hp: Hyperparameters, json_path: str,
@@ -139,10 +131,6 @@ def train(hp: Hyperparameters, json_path: str,
     #json.dump(model, fname)
     return (Dir,)
 
-
-
-
-
 @workflow
 def flyteworkflow(
     dataset_path: str = ".../data/genres",
@@ -157,9 +145,6 @@ def flyteworkflow(
     model = train(hp=Hyperparameters(epochs=30),json_path=json_path, )
 
     return model.model,
-
-    
-
 
 if __name__ == "__main__":
     print(f"Running {__file__} main...")
