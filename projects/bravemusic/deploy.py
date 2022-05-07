@@ -27,7 +27,8 @@ def create_project(remote: bool):
             "get",
             "project",
             PROJECT_NAME,
-            "--config", config,
+            "--config",
+            config,
         ],
         capture_output=True,
         check=True,
@@ -41,11 +42,16 @@ def create_project(remote: bool):
             "flytectl",
             "create",
             "project",
-            "--project", PROJECT_NAME,
-            "--name", PROJECT_NAME,
-            "--id", PROJECT_NAME,
-            "--description", DESCRIPTION,
-            "--config", config,
+            "--project",
+            PROJECT_NAME,
+            "--name",
+            PROJECT_NAME,
+            "--id",
+            PROJECT_NAME,
+            "--description",
+            DESCRIPTION,
+            "--config",
+            config,
         ],
         check=True,
     )
@@ -57,7 +63,7 @@ def get_version(fast: bool):
         typer.echo(
             "Please commit git changes before building. If you haven't updated any system/python dependencies "
             "but want to deploy task/workflow code changes, use the --fast flag to do fast registration.",
-            err=True
+            err=True,
         )
         raise typer.Exit(code=1)
     commit = repo.rev_parse("HEAD")
@@ -100,7 +106,7 @@ def docker_build(tag: str, remote: bool) -> docker.models.images.Image:
         buildargs={
             "image": tag,
             "config": str(config),
-        }
+        },
     )
     for line in build_logs:
         typer.echo(line)
@@ -121,16 +127,15 @@ def serialize(tag: str, remote: bool, fast: bool):
     subprocess.run(
         [
             "pyflyte",
-            "-c", str(config),
-            "--pkgs", "bravemusic",
+            "-c",
+            str(config),
+            "--pkgs",
+            "bravemusic",
             "package",
             "--force",
-            "--image", tag,
-            *(
-                ["--fast"]
-                if fast
-                else ["--in-container-source-path", "/root"]
-            ),
+            "--image",
+            tag,
+            *(["--fast"] if fast else ["--in-container-source-path", "/root"]),
         ],
         check=True,
         # inject the FLYTE_SANDBOX environment variable to the serialization runtime
@@ -146,14 +151,19 @@ def register(version: str, remote: bool, fast: bool, domain: str):
     subprocess.run(
         [
             "flytectl",
-            "-c", config,
+            "-c",
+            config,
             "register",
             "files",
-            "--project", PROJECT_NAME,
-            "--domain", domain,
-            "--archive", "flyte-package.tgz",
+            "--project",
+            PROJECT_NAME,
+            "--domain",
+            domain,
+            "--archive",
+            "flyte-package.tgz",
             "--force",
-            "--version", version
+            "--version",
+            version,
         ],
         check=True,
     )
@@ -161,12 +171,17 @@ def register(version: str, remote: bool, fast: bool, domain: str):
 
 
 @app.command()
-def main(remote: bool = False, fast: bool = False, domain: str = "staging", registry: str = None):
+def main(
+    remote: bool = False,
+    fast: bool = False,
+    domain: str = "staging",
+    registry: str = None,
+):
     if remote and fast:
         typer.echo(
             "Fast registration is not enabled when deploying to remote. "
             "Please deploy your workflows without the --fast flag.",
-            err=True
+            err=True,
         )
     create_project(remote)
     version = get_version(fast)
