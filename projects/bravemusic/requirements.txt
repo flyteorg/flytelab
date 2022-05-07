@@ -8,3 +8,4 @@ numpy==1.21
 joblib==1.1.0
 requests==2.27.1
 dataclasses_json==0.5.7
+black==22.1.0
