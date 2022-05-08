@@ -1,5 +1,4 @@
 import os
-import json
 import math
 import librosa
 from datasource import download_gtzan_repo, GTZAN_ZIP_FILE_PATH
@@ -35,7 +34,6 @@ def clean_dataset():
 
 def preprocess(
     dataset_path: str,
-    json_path: str,
     num_mfcc: int = 13,
     n_fft: int = 2048,
     hop_length: int = 512,
@@ -50,15 +48,13 @@ def preprocess(
     for i, (dir_path, dir_names, filenames) in enumerate(
         os.walk(f"{GTZAN_ZIP_FILE_PATH}/genres/")
     ):
-
         # ensure we're processing a genre sub-folder level
         if dir_path is not dataset_path:
-
             # save genre label (i.e., sub-folder name) in the mapping
             semantic_label = dir_path.split("/")[-1]
             print(semantic_label)
             data["mapping"].append(semantic_label)
-            print("\nProcessing: {}".format(semantic_label))
+            print("Processing: {}".format(semantic_label))
 
             # process all audio files in genre sub-dir
             for f in filenames:
@@ -88,15 +84,12 @@ def preprocess(
                         if len(mfcc) == num_mfcc_vectors_per_segment:
                             data["mfcc"].append(mfcc.tolist())
                             data["labels"].append(i - 1)
-                            print("{}, segment:{}".format(file_path, d + 1))
-    with open(json_path, "w") as fp:
-        json.dump(data, fp, indent=4)
-
+                            # print("{}, segment:{}".format(file_path, d + 1))
     return data
 
 
 if __name__ == "__main__":
     download_gtzan_repo()
-    # clean_dataset()
-    data = preprocess(dataset_path=GTZAN_ZIP_FILE_PATH, json_path="data.json")
+    clean_dataset()
+    data = preprocess(dataset_path=GTZAN_ZIP_FILE_PATH)
     print(data)
