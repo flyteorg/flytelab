@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 SAMPLES_PER_TRACK = SAMPLE_RATE * TRACK_DURATION
 
 MODELSAVE = [typing.TypeVar("str")]
+model_file = typing.NamedTuple("Model", model=FlyteDirectory[MODELSAVE])
 workflow_outputs = typing.NamedTuple("WorkflowOutputs", model=FlyteDirectory[MODELSAVE])
 
 
@@ -27,7 +28,7 @@ def clean_gtzan_dataset():
     clean_dataset()
 
 
-@task(cache_version="1.0", cache=True, limits=Resources(mem="800Mi"))
+@task(cache_version="1.0", cache=True, limits=Resources(mem="2000Mi"))
 def preprocess_gtzan_dataset(
     dataset_path: str
 ) -> dict:
@@ -35,19 +36,21 @@ def preprocess_gtzan_dataset(
     return processed_data
 
 
-@task(cache_version="1.0", cache=True, limits=Resources(mem="800Mi"))
+@task(cache_version="1.0", cache=True, limits=Resources(mem="2000Mi"))
 def train_gtzan_dataset(
     data: dict,
     hp: Hyperparameters,
-):
+)-> model_file:
     model = train(data=data, hp=hp)
-    return model
+    Dir = "model"
+    model.save(Dir)
+    return (Dir,)
 
 
 @workflow
 def flyteworkflow(
     dataset_path: str = GTZAN_ZIP_FILE_PATH
-):
+)-> workflow_outputs:
     download_gtzan_dataset()
     clean_gtzan_dataset()
     processed_data = preprocess_gtzan_dataset(
@@ -58,9 +61,9 @@ def flyteworkflow(
         hp=Hyperparameters(epochs=10)
     )
 
-    # return (model.model)
+    return (model.model,)
 
 
 if __name__ == "__main__":
     print(f"Running {__file__} main...")
-    flyteworkflow()
+    print(flyteworkflow())

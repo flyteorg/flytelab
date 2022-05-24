@@ -4,7 +4,7 @@ import git
 
 GIT_URL = "https://huggingface.co/datasets/marsyas/gtzan"
 GTZAN_PATH = "./gtzan"
-GTZAN_ZIP_FILE_PATH = "gtzan/data"
+GTZAN_ZIP_FILE_PATH = "./gtzan/data"
 GTZAN_ZIP_FILE_NAME = "genres.tar.gz"
 
 
