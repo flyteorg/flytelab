@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 120
+exclude =
+    projects/whats_cooking_good_looking/dashboard/
+ignore = E265, E999
