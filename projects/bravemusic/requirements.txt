@@ -1,0 +1,11 @@
+flytekit>=0.30.3
+pandas==1.4.1
+s3fs==2022.2.0
+scikit-learn==1.0.2
+librosa==0.9.1
+tensorflow==2.8.0
+numpy==1.21
+joblib==1.1.0
+requests==2.27.1
+dataclasses_json==0.5.7
+black==22.1.0

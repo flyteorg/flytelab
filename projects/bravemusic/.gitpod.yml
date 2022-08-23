@@ -1,0 +1,7 @@
+tasks:
+  - init: |
+      python -m venv ~/venvs/brave
+      source ~/venvs/brave/bin/activate
+      pip install -r requirements.txt -r requirements-dev.txt
+    command: python3 projects/bravemusic/bravemusic/workflows.py
+
